@@ -11,9 +11,1026 @@
   Before going live, replace these two values:
 
   SUPABASE_URL  → your project URL from Supabase dashboard
-  SUPBASE_KEY  → your anon/public key from Supabase dashboard
+  SUPABASE_KEY  → your anon/public key from Supabase dashboard
 
   Questions are fetched from Supabase (pre-generated daily).
   No API keys are exposed in this file.
   ═══════════════════════════════════════════════
 -->
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Instrument+Sans:wght@300;400;500;600&family=Instrument+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg:#09090B; --s1:#111114; --s2:#18181C; --s3:#1F1F25; --s4:#26262E;
+  --b1:#252529; --b2:#2E2E36; --b3:#3C3C46;
+  --tx:#EDEAE2; --tm:#6E6E78; --td:#32323A;
+  --easy:#3EE07A; --easy-g:rgba(62,224,122,0.12); --easy-b:rgba(62,224,122,0.28);
+  --med:#F6CB3A;  --med-g:rgba(246,203,58,0.12);  --med-b:rgba(246,203,58,0.28);
+  --hard:#F06565; --hard-g:rgba(240,101,101,0.12); --hard-b:rgba(240,101,101,0.28);
+  --gold:#C8962E; --goldl:#E9B94A;
+  --ok:#3EE07A; --err:#F06565; --warn:#F6CB3A;
+  --r:6px; --rl:12px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden;}
+body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(200,150,46,0.04),transparent);pointer-events:none;z-index:0;}
+::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-track{background:transparent;} ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px;}
+
+/* ── HEADER ── */
+header{border-bottom:1px solid var(--b1);padding:0 20px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:300;background:rgba(9,9,11,0.88);backdrop-filter:blur(24px);}
+.logo{font-family:'Playfair Display',serif;font-size:15px;font-weight:900;letter-spacing:2px;cursor:pointer;}
+.logo .dot{color:var(--goldl);}
+.nav{display:flex;gap:2px;}
+.np{padding:5px 12px;border-radius:100px;font-size:12px;font-family:'Instrument Mono',monospace;letter-spacing:0.3px;cursor:pointer;border:1px solid transparent;background:none;color:var(--tm);transition:all 0.15s;}
+.np:hover{color:var(--tx);border-color:var(--b2);}
+.np.on{background:var(--s2);border-color:var(--b2);color:var(--tx);}
+.hdr-right{display:flex;align-items:center;gap:8px;}
+.streak-chip{display:flex;align-items:center;gap:5px;padding:5px 11px;border:1px solid var(--b1);border-radius:100px;font-family:'Instrument Mono',monospace;font-size:11px;color:var(--tm);}
+.auth-btn{padding:6px 14px;border-radius:var(--r);font-size:12px;font-family:'Instrument Sans',sans-serif;font-weight:500;cursor:pointer;border:none;transition:all 0.15s;}
+.auth-btn.si{background:var(--tx);color:var(--bg);}
+.auth-btn.si:hover{opacity:0.85;}
+.auth-btn.so{background:var(--s2);border:1px solid var(--b2);color:var(--tm);}
+.auth-btn.so:hover{color:var(--tx);}
+.uav{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--goldl));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--bg);cursor:pointer;}
+
+/* ── PAGES ── */
+.page{display:none;flex:1;flex-direction:column;position:relative;z-index:1;}
+.page.on{display:flex;}
+
+/* ── LOADING ── */
+#pgLoad{align-items:center;justify-content:center;min-height:calc(100vh - 54px);}
+.load-wrap{text-align:center;padding:40px 24px;}
+.load-logo{font-family:'Playfair Display',serif;font-size:52px;font-weight:900;letter-spacing:6px;margin-bottom:6px;animation:lPop 0.6s cubic-bezier(0.34,1.56,0.64,1);}
+.load-logo .dot{color:var(--goldl);}
+@keyframes lPop{from{transform:scale(0.8);opacity:0;}to{transform:scale(1);opacity:1;}}
+.load-tagline{font-family:'Instrument Mono',monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--tm);margin-bottom:44px;}
+.load-bar-wrap{width:260px;height:2px;background:var(--b1);border-radius:1px;margin:0 auto 16px;overflow:hidden;}
+.load-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--gold),var(--goldl));border-radius:1px;transition:width 0.6s ease;}
+.load-msg{font-family:'Instrument Mono',monospace;font-size:11px;color:var(--tm);letter-spacing:0.5px;}
+.load-err{margin-top:20px;padding:16px 20px;background:rgba(240,101,101,0.08);border:1px solid rgba(240,101,101,0.2);border-radius:var(--r);font-size:13px;color:var(--err);max-width:320px;margin-left:auto;margin-right:auto;display:none;}
+.load-err a{color:var(--err);cursor:pointer;text-decoration:underline;}
+
+/* ── HOME ── */
+#pgHome{padding:0 0 80px;}
+.home-hero{padding:36px 24px 30px;border-bottom:1px solid var(--b1);position:relative;overflow:hidden;}
+.home-hero::before{content:'';position:absolute;top:-80px;right:-60px;width:340px;height:340px;background:radial-gradient(circle,rgba(200,150,46,0.05),transparent 70%);pointer-events:none;}
+.hero-date{font-family:'Instrument Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--td);margin-bottom:12px;}
+.hero-h{font-family:'Playfair Display',serif;font-size:clamp(30px,5vw,46px);font-weight:900;line-height:1.08;margin-bottom:10px;}
+.hero-h em{font-style:italic;color:var(--goldl);}
+.hero-p{font-size:13px;color:var(--tm);line-height:1.65;max-width:360px;}
+.home-body{padding:20px 20px 0;max-width:580px;margin:0 auto;width:100%;}
+
+.day-strip{display:flex;align-items:center;gap:12px;padding:13px 16px;background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);margin-bottom:16px;}
+.ds-label{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--tm);}
+.ds-dots{display:flex;gap:6px;margin-right:auto;}
+.ds-dot{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--b3);transition:all 0.4s;}
+.ds-dot.de{background:var(--easy);border-color:var(--easy);box-shadow:0 0 6px var(--easy);}
+.ds-dot.dm{background:var(--med);border-color:var(--med);box-shadow:0 0 6px var(--med);}
+.ds-dot.dh{background:var(--hard);border-color:var(--hard);box-shadow:0 0 6px var(--hard);}
+.ds-pts{font-family:'Playfair Display',serif;font-size:18px;color:var(--goldl);}
+
+.mcards{display:flex;flex-direction:column;gap:11px;margin-bottom:20px;}
+.mcard{border:1px solid var(--b1);border-radius:var(--rl);padding:20px 22px;cursor:pointer;transition:all 0.22s;background:var(--s1);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:14px;}
+.mc-shine{position:absolute;inset:0;opacity:0;transition:opacity 0.25s;}
+.ec .mc-shine{background:var(--easy-g);}
+.mc2 .mc-shine{background:var(--med-g);}
+.hc .mc-shine{background:var(--hard-g);}
+.mcard:hover{transform:translateY(-2px);}
+.ec:hover{border-color:var(--easy-b);box-shadow:0 6px 28px rgba(62,224,122,0.07);}
+.mc2:hover{border-color:var(--med-b);box-shadow:0 6px 28px rgba(246,203,58,0.07);}
+.hc:hover{border-color:var(--hard-b);box-shadow:0 6px 28px rgba(240,101,101,0.07);}
+.mcard:hover .mc-shine{opacity:1;}
+.mcard.played{opacity:0.44;cursor:default;pointer-events:none;}
+.mc-l{position:relative;z-index:1;}
+.mc-n{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:5px;}
+.ec .mc-n{color:var(--easy);} .mc2 .mc-n{color:var(--med);} .hc .mc-n{color:var(--hard);}
+.mc-name{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;margin-bottom:3px;}
+.mc-desc{font-size:12px;color:var(--tm);line-height:1.45;}
+.mc-badge{display:inline-flex;align-items:center;gap:4px;margin-top:9px;padding:3px 8px;border-radius:100px;font-size:10px;font-family:'Instrument Mono',monospace;}
+.mc-badge.np{background:var(--s2);color:var(--tm);border:1px solid var(--b2);}
+.mc-badge.dn{background:rgba(62,224,122,0.1);color:var(--easy);border:1px solid var(--easy-b);}
+.mc-r{position:relative;z-index:1;text-align:right;flex-shrink:0;}
+.mc-rung{font-family:'Playfair Display',serif;font-size:30px;font-weight:900;line-height:1;}
+.ec .mc-rung{color:var(--easy);} .mc2 .mc-rung{color:var(--med);} .hc .mc-rung{color:var(--hard);}
+.mc-rl{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--tm);margin-top:2px;}
+.mc-time{font-family:'Instrument Mono',monospace;font-size:11px;color:var(--tm);margin-top:3px;}
+
+/* ── LEADERBOARD ── */
+#pgLeader{padding:24px 20px 80px;max-width:620px;margin:0 auto;width:100%;}
+.lb-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:gap;}
+.lb-hdr h2{font-family:'Playfair Display',serif;font-size:26px;font-weight:900;}
+.lb-tabs{display:flex;gap:4px;background:var(--s2);border:1px solid var(--b1);border-radius:100px;padding:3px;}
+.lb-tab{padding:5px 14px;border-radius:100px;font-family:'Instrument Mono',monospace;font-size:11px;cursor:pointer;border:none;background:none;color:var(--tm);transition:all 0.15s;}
+.lb-tab.on{background:var(--s3);color:var(--tx);}
+.lb-mtabs{display:flex;gap:6px;margin-bottom:16px;}
+.lmt{padding:6px 14px;border-radius:100px;font-family:'Instrument Mono',monospace;font-size:11px;cursor:pointer;border:1px solid var(--b2);background:none;color:var(--tm);transition:all 0.15s;}
+.lmt:hover{color:var(--tx);}
+.lmt.on.et{border-color:var(--easy-b);color:var(--easy);background:var(--easy-g);}
+.lmt.on.mt{border-color:var(--med-b);color:var(--med);background:var(--med-g);}
+.lmt.on.ht{border-color:var(--hard-b);color:var(--hard);background:var(--hard-g);}
+
+.fcb{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:18px 20px;margin-bottom:20px;}
+.fcb-t{font-family:'Instrument Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--tm);margin-bottom:8px;}
+.fcb-d{font-size:13px;color:var(--tm);margin-bottom:12px;line-height:1.5;}
+.fcb-row{display:flex;gap:8px;}
+.fcb-inp{flex:1;padding:9px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--tx);font-family:'Instrument Mono',monospace;font-size:11px;outline:none;}
+.fcb-inp:focus{border-color:var(--goldl);}
+.fbtn{padding:9px 14px;border:none;border-radius:var(--r);font-family:'Instrument Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:opacity 0.15s;}
+.fbtn.p{background:var(--tx);color:var(--bg);}
+.fbtn.p:hover{opacity:0.85;}
+.fbtn.s{background:var(--s3);border:1px solid var(--b2);color:var(--tm);}
+.fbtn.s:hover{color:var(--tx);}
+
+.lb-tbl{width:100%;border-collapse:collapse;}
+.lb-tbl th{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--tm);padding:0 10px 10px 0;text-align:left;border-bottom:1px solid var(--b1);}
+.lb-tbl td{padding:13px 10px 13px 0;border-bottom:1px solid var(--b1);font-size:13px;vertical-align:middle;}
+.lb-tbl tr:last-child td{border-bottom:none;}
+.lb-tbl tr.me td{background:rgba(200,150,46,0.05);}
+.lb-rank{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--tm);width:36px;}
+.lb-rank.gd{color:var(--goldl);} .lb-rank.sv{color:#AAB0BB;} .lb-rank.br{color:#C4855A;}
+.lb-nm{font-weight:500;}
+.lb-nm .you{font-size:10px;font-family:'Instrument Mono',monospace;color:var(--goldl);margin-left:6px;}
+.lb-rung{font-family:'Instrument Mono',monospace;font-weight:500;}
+.lb-time{font-family:'Instrument Mono',monospace;font-size:12px;color:var(--tm);}
+.lb-sc{font-family:'Playfair Display',serif;font-size:16px;color:var(--goldl);}
+.lb-empty{text-align:center;padding:40px;color:var(--tm);font-size:14px;line-height:1.7;}
+.lb-loading{text-align:center;padding:32px;color:var(--tm);font-family:'Instrument Mono',monospace;font-size:12px;letter-spacing:1px;}
+
+/* ── PROFILE ── */
+#pgProfile{padding:24px 20px 80px;max-width:580px;margin:0 auto;width:100%;}
+.ph{margin-bottom:22px;display:flex;align-items:center;gap:14px;}
+.ph-av{width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--goldl));display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--bg);flex-shrink:0;}
+.ph-name{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;margin-bottom:2px;}
+.ph-sub{font-size:12px;color:var(--tm);}
+.en-row{display:flex;gap:8px;margin-top:8px;}
+.en-inp{padding:7px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--tx);font-size:13px;font-family:'Instrument Sans',sans-serif;outline:none;width:180px;}
+.en-inp:focus{border-color:var(--goldl);}
+.en-btn{padding:7px 12px;background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);font-size:12px;color:var(--tm);cursor:pointer;font-family:'Instrument Sans',sans-serif;transition:all 0.15s;}
+.en-btn:hover{color:var(--tx);}
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;}
+.sc{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:15px 17px;}
+.sc-l{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--tm);margin-bottom:5px;}
+.sc-v{font-family:'Playfair Display',serif;font-size:26px;font-weight:700;line-height:1;}
+.sc-v.gd{color:var(--goldl);} .sc-v.ey{color:var(--easy);} .sc-v.md{color:var(--med);} .sc-v.hd{color:var(--hard);}
+.sect{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--tm);margin-bottom:12px;padding-bottom:9px;border-bottom:1px solid var(--b1);}
+.catbars{display:flex;flex-direction:column;gap:9px;margin-bottom:20px;}
+.cbr{display:flex;align-items:center;gap:10px;}
+.cbl{font-size:12px;color:var(--tm);width:100px;flex-shrink:0;}
+.cbt{flex:1;height:5px;background:var(--s2);border-radius:3px;overflow:hidden;}
+.cbf{height:100%;border-radius:3px;transition:width 0.7s ease;}
+.cbp{font-family:'Instrument Mono',monospace;font-size:10px;color:var(--tm);width:32px;text-align:right;}
+.htbl{width:100%;border-collapse:collapse;margin-bottom:20px;}
+.htbl th{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--tm);padding:0 10px 9px 0;text-align:left;border-bottom:1px solid var(--b1);}
+.htbl td{padding:11px 10px 11px 0;font-size:12px;border-bottom:1px solid var(--b1);vertical-align:middle;}
+.htbl tr:last-child td{border-bottom:none;}
+.mchip{display:inline-flex;align-items:center;padding:2px 7px;border-radius:3px;font-family:'Instrument Mono',monospace;font-size:10px;}
+.che{background:var(--easy-g);color:var(--easy);}
+.chm{background:var(--med-g);color:var(--med);}
+.chh{background:var(--hard-g);color:var(--hard);}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:20px;}
+.cd{aspect-ratio:1;border-radius:3px;background:var(--s2);}
+.cd.p1{background:rgba(62,224,122,0.25);}
+.cd.p2{background:rgba(62,224,122,0.5);}
+.cd.p3{background:var(--easy);}
+.cd.tod{outline:2px solid var(--goldl);outline-offset:1px;}
+
+/* ── GAME ── */
+#pgGame{max-width:640px;width:100%;margin:0 auto;padding:20px 18px 80px;flex:1;}
+.gtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding:10px 14px;background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);}
+.gtop-l{display:flex;align-items:center;gap:9px;}
+.pip{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.pe{background:var(--easy);box-shadow:0 0 7px var(--easy);}
+.pm{background:var(--med);box-shadow:0 0 7px var(--med);}
+.ph2{background:var(--hard);box-shadow:0 0 7px var(--hard);}
+.gmode{font-family:'Instrument Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;}
+.te{color:var(--easy);} .tm2{color:var(--med);} .th{color:var(--hard);}
+.gtimer{font-family:'Instrument Mono',monospace;font-size:19px;letter-spacing:1px;}
+.gtimer.tw{color:var(--hard);}
+.gexit{font-size:11px;color:var(--tm);cursor:pointer;padding:4px 9px;border-radius:var(--r);border:1px solid var(--b2);background:none;font-family:'Instrument Mono',monospace;transition:all 0.15s;}
+.gexit:hover{color:var(--tx);border-color:var(--b3);}
+.lad-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.lad-lbl{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--tm);}
+.lad-ctr{font-family:'Playfair Display',serif;font-size:20px;}
+.lad-ctr span{color:var(--tm);font-size:14px;}
+.ladder{display:flex;gap:4px;align-items:flex-end;height:42px;margin-bottom:20px;}
+.rung{flex:1;border-radius:3px;transition:all 0.38s cubic-bezier(0.34,1.56,0.64,1);}
+.rung.emp{background:var(--b1);height:35%;}
+.rung.act{height:72%;animation:rb 1.8s ease-in-out infinite;}
+.rung.re{background:var(--easy);} .rung.rm{background:var(--med);} .rung.rh{background:var(--hard);}
+.rung.ok{background:var(--ok);height:100%;} .rung.no{background:var(--err);height:100%;} .rung.sk{background:var(--warn);height:52%;}
+@keyframes rb{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.srow{display:flex;gap:9px;margin-bottom:16px;}
+.sb{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:10px 14px;flex:1;}
+.sb-l{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--tm);margin-bottom:4px;}
+.sb-v{font-family:'Playfair Display',serif;font-size:20px;line-height:1;}
+.sb-v.gv{color:var(--goldl);}
+.llbox{display:flex;flex-direction:column;justify-content:center;gap:6px;padding:9px 12px;background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);}
+.llc{display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:100px;font-size:10px;font-family:'Instrument Mono',monospace;cursor:pointer;border:1px solid var(--b2);background:var(--s2);color:var(--tx);transition:all 0.15s;white-space:nowrap;}
+.llc:hover:not(:disabled){border-color:var(--b3);background:var(--s3);}
+.llc:disabled{opacity:0.25;cursor:not-allowed;text-decoration:line-through;}
+.catrow{display:flex;align-items:center;gap:9px;margin-bottom:13px;}
+.ctag{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;padding:3px 9px;border-radius:2px;border:1px solid var(--b2);color:var(--tm);}
+.ptag{margin-left:auto;font-family:'Instrument Mono',monospace;font-size:12px;font-weight:500;}
+.pte{color:var(--easy);} .ptm{color:var(--med);} .pth{color:var(--hard);}
+.qcard{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rl);padding:26px 24px;margin-bottom:13px;min-height:120px;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden;}
+.qs{position:absolute;top:0;left:0;width:100%;height:3px;border-radius:var(--rl) var(--rl) 0 0;}
+.se{background:var(--easy);} .sm{background:var(--med);} .sh{background:var(--hard);}
+.qt{font-family:'Playfair Display',serif;font-size:19px;line-height:1.55;color:var(--tx);}
+.hb{margin-top:13px;padding:10px 13px;background:rgba(200,150,46,0.09);border:1px solid rgba(200,150,46,0.2);border-radius:var(--r);font-size:13px;color:var(--goldl);display:none;animation:fu 0.25s ease;}
+.hb.on{display:block;}
+@keyframes fu{from{opacity:0;transform:translateY(-5px);}to{opacity:1;transform:translateY(0);}}
+.sk{border-radius:3px;animation:sp 1.5s ease-in-out infinite;}
+.sk1{height:21px;width:88%;background:var(--s2);margin-bottom:9px;}
+.sk2{height:21px;width:64%;background:var(--s2);}
+@keyframes sp{0%,100%{opacity:0.5;}50%{opacity:1;}}
+.aw{position:relative;margin-bottom:11px;}
+.ai{width:100%;padding:13px 16px;font-size:15px;font-family:'Instrument Sans',sans-serif;border:1.5px solid var(--b2);border-radius:var(--r);background:var(--s1);color:var(--tx);outline:none;transition:border-color 0.15s,box-shadow 0.15s;}
+.ai::placeholder{color:var(--td);}
+.ai:disabled{opacity:0.4;}
+.aie:focus{border-color:var(--easy);box-shadow:0 0 0 3px rgba(62,224,122,0.07);}
+.aim:focus{border-color:var(--med);box-shadow:0 0 0 3px rgba(246,203,58,0.07);}
+.aih:focus{border-color:var(--hard);box-shadow:0 0 0 3px rgba(240,101,101,0.07);}
+.adrop{position:absolute;top:calc(100% + 3px);left:0;right:0;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);z-index:50;display:none;overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,0.45);}
+.adrop.op{display:block;}
+.ai-item{padding:9px 16px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--b1);color:var(--tx);transition:background 0.1s;}
+.ai-item:last-child{border-bottom:none;}
+.ai-item:hover,.ai-item.hl{background:var(--s3);}
+.ai-item mark{background:none;font-weight:600;color:var(--tx);}
+.arow{display:flex;gap:9px;margin-bottom:11px;}
+.btn{flex:1;padding:12px;border-radius:var(--r);font-family:'Instrument Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid transparent;transition:all 0.15s;display:flex;align-items:center;justify-content:center;gap:6px;}
+.bp{background:var(--tx);color:var(--bg);border-color:var(--tx);}
+.bp:hover:not(:disabled){opacity:0.85;}
+.bp:disabled{opacity:0.28;cursor:not-allowed;}
+.bg2{background:transparent;color:var(--tm);border-color:var(--b2);}
+.bg2:hover:not(:disabled){border-color:var(--b3);color:var(--tx);}
+.bg2:disabled{opacity:0.26;cursor:not-allowed;text-decoration:line-through;}
+.fb{display:none;align-items:center;gap:9px;padding:11px 14px;border-radius:var(--r);font-size:13px;margin-bottom:11px;animation:fu 0.2s ease;}
+.fb.on{display:flex;}
+.fb-ok{background:rgba(62,224,122,0.07);border:1px solid rgba(62,224,122,0.18);color:var(--ok);}
+.fb-no{background:rgba(240,101,101,0.07);border:1px solid rgba(240,101,101,0.18);color:var(--err);}
+.fb-sk{background:rgba(246,203,58,0.07);border:1px solid rgba(246,203,58,0.18);color:var(--warn);}
+.fbm{font-family:'Instrument Mono',monospace;font-weight:500;}
+.bnext{width:100%;padding:13px;background:var(--tx);color:var(--bg);border:none;border-radius:var(--r);font-family:'Instrument Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:none;transition:opacity 0.15s;}
+.bnext:hover{opacity:0.85;}
+.bnext.on{display:block;}
+
+/* ── RESULT OVERLAY ── */
+.ov{position:fixed;inset:0;background:rgba(9,9,11,0.93);backdrop-filter:blur(22px);display:none;align-items:center;justify-content:center;z-index:500;padding:18px;}
+.ov.on{display:flex;}
+.ovc{background:var(--s1);border:1px solid var(--b2);border-radius:16px;padding:34px 30px;max-width:400px;width:100%;text-align:center;animation:op 0.42s cubic-bezier(0.34,1.56,0.64,1);position:relative;overflow:hidden;}
+@keyframes op{from{transform:scale(0.82);opacity:0;}to{transform:scale(1);opacity:1;}}
+.ov-str{position:absolute;top:0;left:0;width:100%;height:4px;}
+.ov-em{font-size:50px;display:block;margin-bottom:12px;}
+.ov-t{font-family:'Playfair Display',serif;font-size:26px;font-weight:900;margin-bottom:5px;}
+.ov-s{font-size:13px;color:var(--tm);margin-bottom:22px;line-height:1.6;}
+.ov-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:18px;}
+.ov-st{background:var(--s2);border-radius:var(--r);padding:12px 6px;}
+.ov-sv{font-family:'Playfair Display',serif;font-size:24px;display:block;margin-bottom:2px;}
+.ov-sl{font-family:'Instrument Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--tm);}
+.share-box{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:13px;font-family:'Instrument Mono',monospace;font-size:12px;letter-spacing:2px;line-height:2.1;margin-bottom:16px;text-align:center;white-space:pre-line;}
+.ov-btns{display:flex;flex-direction:column;gap:8px;}
+.obp{background:var(--tx);color:var(--bg);border:none;padding:12px;border-radius:var(--r);font-family:'Instrument Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:opacity 0.15s;}
+.obp:hover{opacity:0.85;}
+.obs{background:transparent;color:var(--tm);border:1px solid var(--b2);padding:11px;border-radius:var(--r);font-family:'Instrument Sans',sans-serif;font-size:12px;cursor:pointer;transition:all 0.15s;}
+.obs:hover{border-color:var(--b3);color:var(--tx);}
+
+/* ── AUTH MODAL ── */
+.modal-ov{position:fixed;inset:0;background:rgba(9,9,11,0.85);backdrop-filter:blur(16px);display:none;align-items:center;justify-content:center;z-index:600;padding:20px;}
+.modal-ov.on{display:flex;}
+.modal{background:var(--s1);border:1px solid var(--b2);border-radius:var(--rl);padding:36px 32px;max-width:380px;width:100%;animation:op 0.35s cubic-bezier(0.34,1.56,0.64,1);position:relative;}
+.modal-t{font-family:'Playfair Display',serif;font-size:24px;font-weight:700;margin-bottom:6px;}
+.modal-s{font-size:13px;color:var(--tm);margin-bottom:22px;line-height:1.55;}
+.field{margin-bottom:13px;}
+.field label{display:block;font-family:'Instrument Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--tm);margin-bottom:5px;}
+.field input{width:100%;padding:11px 13px;background:var(--s2);border:1.5px solid var(--b2);border-radius:var(--r);color:var(--tx);font-family:'Instrument Sans',sans-serif;font-size:14px;outline:none;transition:border-color 0.15s;}
+.field input:focus{border-color:var(--goldl);}
+.field input::placeholder{color:var(--td);}
+.modal-btn{width:100%;padding:13px;background:var(--tx);color:var(--bg);border:none;border-radius:var(--r);font-family:'Instrument Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:opacity 0.15s;margin:10px 0 8px;}
+.modal-btn:hover{opacity:0.85;}
+.modal-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.modal-alt{text-align:center;font-size:13px;color:var(--tm);}
+.modal-alt a{color:var(--goldl);cursor:pointer;}
+.modal-err{color:var(--err);font-size:12px;margin-top:6px;font-family:'Instrument Mono',monospace;}
+.modal-x{position:absolute;top:14px;right:16px;background:none;border:none;color:var(--tm);cursor:pointer;font-size:18px;}
+
+/* ── CHALLENGE BANNER ── */
+.cb-banner{background:linear-gradient(135deg,rgba(200,150,46,0.12),rgba(200,150,46,0.04));border:1px solid rgba(200,150,46,0.25);border-radius:var(--r);padding:16px 20px;margin-bottom:16px;}
+.cb-t{font-family:'Instrument Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--goldl);margin-bottom:6px;}
+.cb-tx{font-size:13px;color:var(--tm);line-height:1.5;}
+.cb-name{font-family:'Playfair Display',serif;font-size:16px;color:var(--tx);}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(14px);background:var(--tx);color:var(--bg);padding:8px 18px;border-radius:100px;font-size:12px;font-weight:500;opacity:0;transition:all 0.2s;z-index:999;white-space:nowrap;pointer-events:none;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+@media(max-width:480px){
+  .qt{font-size:17px;} .qcard{padding:18px 14px;} .ovc{padding:26px 16px;}
+  .mcard{padding:14px 16px;} header,#pgLeader,.home-body,#pgProfile{padding-left:14px;padding-right:14px;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo" onclick="showPage('home')">The Climb<span class="dot">.</span></div>
+  <nav class="nav">
+    <button class="np on"  onclick="showPage('home')"    id="np-home">Play</button>
+    <button class="np"     onclick="showPage('leader')"  id="np-leader">Leaderboard</button>
+    <button class="np"     onclick="showPage('profile')" id="np-profile">Profile</button>
+  </nav>
+  <div class="hdr-right">
+    <div class="streak-chip">🔥 <span id="streakNum">0</span></div>
+    <div id="authArea"></div>
+  </div>
+</header>
+
+<!-- LOADING -->
+<div class="page on" id="pgLoad">
+  <div class="load-wrap">
+    <div class="load-logo">The Climb<span class="dot">.</span></div>
+    <div class="load-tagline">Daily Trivia Challenge</div>
+    <div class="load-bar-wrap"><div class="load-bar" id="loadBar"></div></div>
+    <div class="load-msg" id="loadMsg">Loading today's questions…</div>
+    <div class="load-err" id="loadErr">
+      Today's questions aren't ready yet!<br>
+      They're generated fresh each day at midnight.<br><br>
+      <a onclick="retryLoad()">Tap to retry</a> or check back soon.
+    </div>
+  </div>
+</div>
+
+<!-- HOME -->
+<div class="page" id="pgHome">
+  <div class="home-hero">
+    <div class="hero-date" id="heroDate"></div>
+    <h1 class="hero-h">Start your<br><em>daily climb.</em></h1>
+    <p class="hero-p">Three ladders, one day. Climb as high as you can in each mode — rung reached is your rank, time breaks ties.</p>
+  </div>
+  <div class="home-body">
+    <div id="challengeBanner"></div>
+    <div class="day-strip">
+      <div class="ds-label">Today</div>
+      <div class="ds-dots">
+        <div class="ds-dot" id="dde"></div>
+        <div class="ds-dot" id="ddm"></div>
+        <div class="ds-dot" id="ddh"></div>
+      </div>
+      <div><div class="ds-pts" id="dsPts">0</div><div style="font-family:'Instrument Mono',monospace;font-size:9px;color:var(--tm);">total pts</div></div>
+    </div>
+    <div class="mcards">
+      <div class="mcard ec" id="mcE" onclick="startMode('easy')">
+        <div class="mc-shine"></div>
+        <div class="mc-l"><div class="mc-n">Mode 01</div><div class="mc-name">Easy</div><div class="mc-desc">Accessible trivia. Build confidence, warm up your brain.</div><div class="mc-badge np" id="bdgE">○ Not played yet</div></div>
+        <div class="mc-r"><div class="mc-rung" id="rnE">—</div><div class="mc-rl">best rung</div><div class="mc-time" id="tmE"></div></div>
+      </div>
+      <div class="mcard mc2" id="mcM" onclick="startMode('medium')">
+        <div class="mc-shine"></div>
+        <div class="mc-l"><div class="mc-n">Mode 02</div><div class="mc-name">Medium</div><div class="mc-desc">A genuine test. You'll know half, struggle with the rest.</div><div class="mc-badge np" id="bdgM">○ Not played yet</div></div>
+        <div class="mc-r"><div class="mc-rung" id="rnM">—</div><div class="mc-rl">best rung</div><div class="mc-time" id="tmM"></div></div>
+      </div>
+      <div class="mcard hc" id="mcH" onclick="startMode('hard')">
+        <div class="mc-shine"></div>
+        <div class="mc-l"><div class="mc-n">Mode 03</div><div class="mc-name">Hard</div><div class="mc-desc">Obscure, specific, punishing. For the truly obsessed.</div><div class="mc-badge np" id="bdgH">○ Not played yet</div></div>
+        <div class="mc-r"><div class="mc-rung" id="rnH">—</div><div class="mc-rl">best rung</div><div class="mc-time" id="tmH"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LEADERBOARD -->
+<div class="page" id="pgLeader">
+  <div class="lb-hdr"><h2>Leaderboard</h2>
+    <div class="lb-tabs">
+      <button class="lb-tab on" onclick="setScope('global')" id="lbt-g">Global</button>
+      <button class="lb-tab"    onclick="setScope('today')"  id="lbt-t">Today</button>
+    </div>
+  </div>
+  <div class="fcb">
+    <div class="fcb-t">⚔️ Friend Challenge</div>
+    <div class="fcb-d">Challenge a friend to beat your score on the same questions. Generate a link and share it — they play head-to-head against you.</div>
+    <div class="fcb-row">
+      <input class="fcb-inp" id="challengeLink" readonly placeholder="Select a mode below, then Generate"/>
+      <button class="fbtn p" onclick="genChallenge()">Generate</button>
+      <button class="fbtn s" onclick="copyChallenge()">Copy</button>
+    </div>
+  </div>
+  <div class="lb-mtabs">
+    <button class="lmt on et" onclick="setLbMode('easy')"   id="lmt-e">Easy</button>
+    <button class="lmt mt"    onclick="setLbMode('medium')" id="lmt-m">Medium</button>
+    <button class="lmt ht"    onclick="setLbMode('hard')"   id="lmt-h">Hard</button>
+  </div>
+  <div id="lbContent"></div>
+</div>
+
+<!-- PROFILE -->
+<div class="page" id="pgProfile">
+  <div class="ph">
+    <div class="ph-av" id="phAv">?</div>
+    <div>
+      <div class="ph-name" id="phName">Guest Player</div>
+      <div class="ph-sub" id="phSub">Playing locally</div>
+      <div class="en-row"><input class="en-inp" id="nameInp" placeholder="Set display name…" maxlength="24"/><button class="en-btn" onclick="saveName()">Save</button></div>
+    </div>
+  </div>
+  <div class="sgrid">
+    <div class="sc"><div class="sc-l">Days Played</div><div class="sc-v gd" id="pDays">0</div></div>
+    <div class="sc"><div class="sc-l">Streak</div><div class="sc-v gd" id="pStreak">0 🔥</div></div>
+    <div class="sc"><div class="sc-l">Best Rung — Easy</div><div class="sc-v ey" id="pBE">—</div></div>
+    <div class="sc"><div class="sc-l">Best Rung — Medium</div><div class="sc-v md" id="pBM">—</div></div>
+    <div class="sc"><div class="sc-l">Best Rung — Hard</div><div class="sc-v hd" id="pBH">—</div></div>
+    <div class="sc"><div class="sc-l">Total Score</div><div class="sc-v gd" id="pTotal">0</div></div>
+  </div>
+  <div class="sect">Category Accuracy</div>
+  <div class="catbars" id="catBars"></div>
+  <div class="sect">Recent Games</div>
+  <table class="htbl"><thead><tr><th>Date</th><th>Mode</th><th>Rung</th><th>Score</th><th>Time</th></tr></thead><tbody id="histBody"></tbody></table>
+  <div class="sect">Activity — 28 Days</div>
+  <div class="cal" id="calGrid"></div>
+</div>
+
+<!-- GAME -->
+<div class="page" id="pgGame">
+  <div class="gtop">
+    <div class="gtop-l"><div class="pip" id="gpip"></div><div class="gmode" id="gmode"></div></div>
+    <div class="gtimer" id="gtimer">0:00</div>
+    <button class="gexit" onclick="confirmExit()">← Exit</button>
+  </div>
+  <div class="lad-meta"><div class="lad-lbl">Ladder</div><div class="lad-ctr" id="ladCtr">1 <span>/ 10</span></div></div>
+  <div class="ladder" id="ladder"></div>
+  <div class="srow">
+    <div class="sb"><div class="sb-l">Rung</div><div class="sb-v" id="gRung">1</div></div>
+    <div class="sb"><div class="sb-l">Score</div><div class="sb-v gv" id="gScore">0</div></div>
+    <div class="llbox">
+      <button class="llc" id="llSkip" onclick="useSkip()">🔀 Skip</button>
+      <button class="llc" id="llHint" onclick="useHint()">💡 Hint</button>
+    </div>
+  </div>
+  <div class="catrow"><div class="ctag" id="catTag">—</div><div class="ptag" id="ptag">+100</div></div>
+  <div class="qcard">
+    <div class="qs" id="qstripe"></div>
+    <div id="qskel"><div class="sk sk1"></div><div class="sk sk2"></div></div>
+    <div class="qt" id="qtext" style="display:none;"></div>
+    <div class="hb" id="hintbox"></div>
+  </div>
+  <div class="fb" id="fb"><span id="fbi"></span><span id="fbm"></span></div>
+  <div class="aw"><input class="ai" id="ansInp" type="text" placeholder="Type your answer…" autocomplete="off" spellcheck="false"/><div class="adrop" id="adrop"></div></div>
+  <div class="arow">
+    <button class="btn bg2" id="bSkip" onclick="useSkip()">🔀 Skip</button>
+    <button class="btn bg2" id="bHint" onclick="useHint()">💡 Hint</button>
+    <button class="btn bp"  id="bSub"  onclick="submit()" disabled>Submit →</button>
+  </div>
+  <button class="bnext" id="bnext" onclick="nextQ()">Continue →</button>
+</div>
+
+<!-- RESULT OVERLAY -->
+<div class="ov" id="overlay">
+  <div class="ovc">
+    <div class="ov-str" id="ovStr"></div>
+    <span class="ov-em" id="ovEm">🏆</span>
+    <h2 class="ov-t" id="ovT"></h2>
+    <p class="ov-s" id="ovS"></p>
+    <div class="ov-stats">
+      <div class="ov-st"><span class="ov-sv" id="ovRung" style="color:var(--goldl)"></span><span class="ov-sl">Rung</span></div>
+      <div class="ov-st"><span class="ov-sv" id="ovScore"></span><span class="ov-sl">Score</span></div>
+      <div class="ov-st"><span class="ov-sv" id="ovTime"></span><span class="ov-sl">Time</span></div>
+    </div>
+    <div class="share-box" id="shareBox"></div>
+    <div class="ov-btns">
+      <button class="obp" onclick="copyResult()">📋 Copy & Share</button>
+      <button class="obs" onclick="challengeFriend()">⚔️ Challenge a Friend</button>
+      <button class="obs" onclick="closeOverlay()">← Back to Modes</button>
+    </div>
+  </div>
+</div>
+
+<!-- AUTH MODAL -->
+<div class="modal-ov" id="authModal">
+  <div class="modal">
+    <button class="modal-x" onclick="closeAuth()">✕</button>
+    <div class="modal-t" id="authT">Sign In</div>
+    <div class="modal-s" id="authS">Sign in to appear on the global leaderboard.</div>
+    <div class="field"><label>Email</label><input type="email" id="authEmail" placeholder="you@example.com"/></div>
+    <div class="field" id="nameField" style="display:none;"><label>Display Name</label><input type="text" id="authName" placeholder="Your leaderboard name" maxlength="24"/></div>
+    <div class="field"><label>Password</label><input type="password" id="authPass" placeholder="••••••••"/></div>
+    <div class="modal-err" id="authErr"></div>
+    <button class="modal-btn" id="authBtn" onclick="doAuth()">Sign In</button>
+    <div class="modal-alt" id="authSwitch">No account? <a onclick="toggleAuth()">Sign up free</a></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// CONFIG — Replace these with your Supabase values
+// ══════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://usmdxwssdkxzhicavsap.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_mympp2mYbDdi1ckJkblbkg_ezLFYx45';
+
+// ══════════════════════════════════════════════════════
+// CONSTANTS
+// ══════════════════════════════════════════════════════
+const TOTAL = 10;
+const TODAY = new Date().toISOString().slice(0,10);
+const CATS  = ['Pop Culture','Sports','Music','Movies','TV','History','Geography','Science','Food & Drink','Tech & Innovation'];
+const MCFG  = {
+  easy:   {label:'Easy',  color:'#3EE07A',pip:'pe',mc:'te',ptc:'pte',stripe:'se',ai:'aie',pts:100},
+  medium: {label:'Medium',color:'#F6CB3A',pip:'pm',mc:'tm2',ptc:'ptm',stripe:'sm',ai:'aim',pts:175},
+  hard:   {label:'Hard',  color:'#F06565',pip:'ph2',mc:'th',ptc:'pth',stripe:'sh',ai:'aih',pts:275},
+};
+
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+let sb = null, sbUser = null;
+let dailyQs = {easy:null,medium:null,hard:null};
+let dayRes  = {easy:null,medium:null,hard:null};
+let profile = loadProfile();
+let G = null;
+let lbState = {scope:'global',mode:'easy'};
+let authMode = 'signin';
+
+function newG(m){ return {mode:m,q:0,score:0,results:[],skipUsed:false,hintUsed:false,answered:false,acIdx:-1,timerSec:0,timerInt:null,over:false}; }
+
+// ══════════════════════════════════════════════════════
+// PERSISTENCE
+// ══════════════════════════════════════════════════════
+function loadProfile(){ try{ const r=localStorage.getItem('climb_profile'); return r?JSON.parse(r):dfP(); }catch{ return dfP(); } }
+function dfP(){ return {name:'',streak:0,lastPlay:'',daysPlayed:0,totalScore:0,bestRung:{easy:0,medium:0,hard:0},catStats:{},history:[]}; }
+function saveProfile(){ try{ localStorage.setItem('climb_profile',JSON.stringify(profile)); }catch{} }
+function loadDayRes(){ try{ const r=localStorage.getItem('climb_day_'+TODAY); if(r) dayRes=JSON.parse(r); }catch{} }
+function saveDayRes(){ try{ localStorage.setItem('climb_day_'+TODAY,JSON.stringify(dayRes)); }catch{} }
+
+// ══════════════════════════════════════════════════════
+// STARTUP
+// ══════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async ()=>{
+  loadDayRes();
+  checkChallenge();
+  document.getElementById('heroDate').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}).toUpperCase();
+  document.getElementById('nameInp').value = profile.name||'';
+
+  // Init Supabase
+  try {
+    if (!SUPABASE_URL.includes('YOUR_PROJECT')) {
+      sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      sb.auth.onAuthStateChange((e,s)=>{ sbUser=s?.user||null; renderAuth(); });
+      const {data:{session}} = await sb.auth.getSession();
+      sbUser = session?.user||null;
+    }
+  } catch(e){ console.warn('Supabase init failed',e); }
+
+  renderAuth();
+
+  // Input handlers
+  const ai = document.getElementById('ansInp');
+  ai.addEventListener('input', onType);
+  ai.addEventListener('keydown', onKey);
+  document.addEventListener('click', e=>{ if(!e.target.closest('.aw')) closeAuto(); });
+
+  // Load questions
+  await loadQuestions();
+  showPage('home');
+  refreshHome();
+});
+
+async function loadQuestions(){
+  setBar(10,'Fetching today\'s questions…');
+
+  if (!sb) {
+    // No Supabase — show setup message
+    document.getElementById('loadErr').style.display='block';
+    document.getElementById('loadErr').innerHTML='<strong>Supabase not configured.</strong><br>Open the HTML file and replace <code>YOUR_PROJECT</code> and <code>YOUR_ANON_KEY</code> with your Supabase credentials.';
+    setBar(100);
+    await sleep(99999); // Stay on load screen
+    return;
+  }
+
+  try {
+    const {data, error} = await sb
+      .from('daily_questions')
+      .select('mode, questions')
+      .eq('date', TODAY);
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      // No questions yet — show friendly error
+      document.getElementById('loadErr').style.display='block';
+      setBar(100,'No questions yet today.');
+      await sleep(99999);
+      return;
+    }
+
+    data.forEach(row => { dailyQs[row.mode] = row.questions; });
+    setBar(100,'Ready!');
+    await sleep(400);
+
+  } catch(e) {
+    console.error('Failed to load questions:', e);
+    document.getElementById('loadErr').style.display='block';
+    setBar(100,'Error loading questions.');
+    await sleep(99999);
+  }
+}
+
+function retryLoad(){ window.location.reload(); }
+function setBar(p,m){ document.getElementById('loadBar').style.width=p+'%'; if(m) document.getElementById('loadMsg').textContent=m; }
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+// ══════════════════════════════════════════════════════
+// CHALLENGE LINK
+// ══════════════════════════════════════════════════════
+function checkChallenge(){
+  const p=new URLSearchParams(window.location.search);
+  const cm=p.get('challenge'), cd=p.get('date'), cn=p.get('name');
+  if(cm&&cd===TODAY&&['easy','medium','hard'].includes(cm)){
+    document.getElementById('challengeBanner').innerHTML=`<div class="cb-banner"><div class="cb-t">⚔️ You've been challenged!</div><div class="cb-tx"><span class="cb-name">${esc(cn||'A friend')}</span> challenged you to beat their <strong>${cm}</strong> score. Same questions — go!</div></div>`;
+  }
+}
+function genChallenge(){
+  const m=lbState.mode, name=encodeURIComponent(profile.name||'A friend');
+  const url=`${location.origin}${location.pathname}?challenge=${m}&date=${TODAY}&name=${name}`;
+  document.getElementById('challengeLink').value=url;
+}
+function copyChallenge(){
+  const v=document.getElementById('challengeLink').value;
+  if(!v||v.includes('Select')){ toast('Click Generate first!'); return; }
+  navigator.clipboard.writeText(v).then(()=>toast('Challenge link copied!')).catch(()=>toast('Copied!'));
+}
+function challengeFriend(){ closeOverlay(); showPage('leader'); setTimeout(()=>{ if(G?.mode)setLbMode(G.mode); genChallenge(); copyChallenge(); },300); }
+
+// ══════════════════════════════════════════════════════
+// PAGES
+// ══════════════════════════════════════════════════════
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.getElementById('pg'+cap(id)).classList.add('on');
+  document.querySelectorAll('.np').forEach(p=>p.classList.remove('on'));
+  const el=document.getElementById('np-'+id); if(el) el.classList.add('on');
+  if(id==='home') refreshHome();
+  if(id==='profile') renderProfile();
+  if(id==='leader'){ renderAuth(); loadLb(); }
+}
+
+// ══════════════════════════════════════════════════════
+// HOME
+// ══════════════════════════════════════════════════════
+function refreshHome(){
+  let pts=0;
+  ['easy','medium','hard'].forEach(m=>{
+    const r=dayRes[m], c=cap(m), k=m[0];
+    const b=document.getElementById('bdg'+c[0]), rn=document.getElementById('rn'+c[0]);
+    const tm=document.getElementById('tm'+c[0]), card=document.getElementById('mc'+c[0]);
+    const dot=document.getElementById('dd'+k);
+    if(r){
+      pts+=r.score;
+      b.className='mc-badge dn'; b.textContent=`✓ Rung ${r.rung} · ${fmt(r.time)}`;
+      rn.textContent=r.rung; tm.textContent=fmt(r.time); card.classList.add('played');
+      dot.className='ds-dot d'+k;
+    } else {
+      b.className='mc-badge np'; b.textContent='○ Not played yet';
+      rn.textContent='—'; tm.textContent=''; card.classList.remove('played');
+      dot.className='ds-dot';
+    }
+  });
+  document.getElementById('dsPts').textContent=pts.toLocaleString();
+  document.getElementById('streakNum').textContent=profile.streak||0;
+}
+
+// ══════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════
+function renderAuth(){
+  const area=document.getElementById('authArea');
+  if(sbUser){
+    const init=(sbUser.user_metadata?.display_name||sbUser.email||'?').slice(0,1).toUpperCase();
+    area.innerHTML=`<div class="uav" onclick="showPage('profile')" title="${esc(sbUser.email)}">${init}</div><button class="auth-btn so" onclick="signOut()">Sign out</button>`;
+  } else {
+    area.innerHTML=sb ? `<button class="auth-btn si" onclick="openAuth()">Sign in</button>` : '';
+  }
+}
+function openAuth(){ authMode='signin'; setAuthUI(); document.getElementById('authModal').classList.add('on'); }
+function closeAuth(){ document.getElementById('authModal').classList.remove('on'); }
+function toggleAuth(){ authMode=authMode==='signin'?'signup':'signin'; setAuthUI(); }
+function setAuthUI(){
+  const up=authMode==='signup';
+  document.getElementById('authT').textContent=up?'Create Account':'Sign In';
+  document.getElementById('authS').textContent=up?'Join The Climb and compete globally.':'Welcome back.';
+  document.getElementById('authBtn').textContent=up?'Create Account':'Sign In';
+  document.getElementById('authSwitch').innerHTML=up?'Have an account? <a onclick="toggleAuth()">Sign in</a>':'No account? <a onclick="toggleAuth()">Sign up free</a>';
+  document.getElementById('nameField').style.display=up?'block':'none';
+  document.getElementById('authErr').textContent='';
+}
+async function doAuth(){
+  if(!sb) return;
+  const email=document.getElementById('authEmail').value.trim();
+  const pass=document.getElementById('authPass').value;
+  const name=document.getElementById('authName').value.trim();
+  const btn=document.getElementById('authBtn'); btn.disabled=true; btn.textContent='Please wait…';
+  document.getElementById('authErr').textContent='';
+  try {
+    let error;
+    if(authMode==='signup'){
+      ({error}=await sb.auth.signUp({email,password:pass,options:{data:{display_name:name||email.split('@')[0]}}}));
+      if(!error){ profile.name=name||email.split('@')[0]; saveProfile(); }
+    } else {
+      ({error}=await sb.auth.signInWithPassword({email,password:pass}));
+    }
+    if(error) document.getElementById('authErr').textContent=error.message;
+  } catch(e){ document.getElementById('authErr').textContent='Something went wrong.'; }
+  btn.disabled=false; setAuthUI();
+}
+async function signOut(){ if(sb) await sb.auth.signOut(); sbUser=null; renderAuth(); toast('Signed out.'); }
+
+// ══════════════════════════════════════════════════════
+// LEADERBOARD
+// ══════════════════════════════════════════════════════
+function setScope(s){
+  lbState.scope=s;
+  document.getElementById('lbt-g').classList.toggle('on',s==='global');
+  document.getElementById('lbt-t').classList.toggle('on',s==='today');
+  loadLb();
+}
+function setLbMode(m){
+  lbState.mode=m;
+  ['e','m','h'].forEach((k,i)=>{
+    const modes=['easy','medium','hard'];
+    const cls=['et','mt','ht'];
+    const el=document.getElementById('lmt-'+k);
+    el.className='lmt '+(m===modes[i]?'on ':'')+cls[i];
+  });
+  loadLb();
+}
+async function loadLb(){
+  const el=document.getElementById('lbContent');
+  el.innerHTML='<div class="lb-loading">Loading…</div>';
+  if(!sb){ el.innerHTML='<div class="lb-empty">Sign in with Supabase to see the global leaderboard.</div>'; return; }
+  try {
+    let q=sb.from('scores').select('display_name,user_id,rung,score,time_sec').eq('mode',lbState.mode).order('rung',{ascending:false}).order('time_sec',{ascending:true}).limit(50);
+    if(lbState.scope==='today') q=q.eq('date',TODAY);
+    const {data,error}=await q;
+    if(error) throw error;
+    el.innerHTML=renderLbTable(data||[]);
+  } catch(e){ el.innerHTML='<div class="lb-empty">Could not load leaderboard.</div>'; }
+}
+function renderLbTable(rows){
+  if(!rows.length) return '<div class="lb-empty">No scores yet.<br>Be the first to play!</div>';
+  const rc=i=>i===0?'gd':i===1?'sv':i===2?'br':'';
+  const re=i=>i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1;
+  let h=`<table class="lb-tbl"><thead><tr><th>#</th><th>Player</th><th>Rung</th><th>Score</th><th>Time</th></tr></thead><tbody>`;
+  rows.forEach((r,i)=>{
+    const me=sbUser&&r.user_id===sbUser.id;
+    h+=`<tr${me?' class="me"':''}><td><div class="lb-rank ${rc(i)}">${re(i)}</div></td><td class="lb-nm">${esc(r.display_name||'Anonymous')}${me?'<span class="you">you</span>':''}</td><td class="lb-rung">${r.rung}</td><td class="lb-sc">${(r.score||0).toLocaleString()}</td><td class="lb-time">${fmt(r.time_sec||0)}</td></tr>`;
+  });
+  return h+'</tbody></table>';
+}
+async function submitScore(mode,rung,score,timeSec,results){
+  if(!sb||!sbUser) return;
+  const name=sbUser.user_metadata?.display_name||profile.name||sbUser.email?.split('@')[0]||'Player';
+  try { await sb.from('scores').upsert({user_id:sbUser.id,display_name:name,mode,rung,score,time_sec:timeSec,date:TODAY,results},{onConflict:'user_id,mode,date'}); }
+  catch(e){ console.warn('Score submit failed:',e); }
+}
+
+// ══════════════════════════════════════════════════════
+// GAME
+// ══════════════════════════════════════════════════════
+function startMode(mode){
+  if(!dailyQs[mode]?.length){ toast('Questions not ready!'); return; }
+  G=newG(mode); const cfg=MCFG[mode];
+  showPage('game');
+  document.getElementById('gpip').className='pip '+cfg.pip;
+  const gm=document.getElementById('gmode'); gm.className='gmode '+cfg.mc; gm.textContent=cfg.label+' Mode';
+  document.getElementById('ansInp').className='ai '+cfg.ai;
+  document.getElementById('qstripe').className='qs '+cfg.stripe;
+  document.getElementById('ptag').className='ptag '+cfg.ptc;
+  document.getElementById('ptag').textContent='+'+cfg.pts+' pts';
+  G.timerInt=setInterval(()=>{
+    G.timerSec++;
+    const td=document.getElementById('gtimer');
+    td.textContent=fmt(G.timerSec);
+    td.className='gtimer'+(G.timerSec>=300?' tw':'');
+  },1000);
+  renderLadder(); renderQ();
+}
+function renderLadder(){
+  const tr=document.getElementById('ladder'); tr.innerHTML='';
+  const mc={easy:'re',medium:'rm',hard:'rh'}[G.mode];
+  for(let i=0;i<TOTAL;i++){
+    const d=document.createElement('div'); d.className='rung';
+    if(i<G.results.length){ const r=G.results[i]; d.classList.add(r==='correct'?'ok':r==='wrong'?'no':'sk'); }
+    else if(i===G.q) d.classList.add('act',mc);
+    else d.classList.add('emp');
+    tr.appendChild(d);
+  }
+  document.getElementById('ladCtr').innerHTML=`${G.q+1} <span>/ ${TOTAL}</span>`;
+  document.getElementById('gRung').textContent=G.q+1;
+}
+function renderQ(){
+  G.answered=false; G.acIdx=-1; closeAuto();
+  const ai=document.getElementById('ansInp'); ai.value=''; ai.disabled=false;
+  document.getElementById('fb').className='fb';
+  document.getElementById('hintbox').className='hb';
+  document.getElementById('bnext').className='bnext';
+  document.getElementById('bSub').disabled=true;
+  document.getElementById('qskel').style.display='block';
+  document.getElementById('qtext').style.display='none';
+  syncLL();
+  const q=dailyQs[G.mode][G.q];
+  document.getElementById('catTag').textContent=q?.category||CATS[G.q%CATS.length];
+  setTimeout(()=>{ document.getElementById('qskel').style.display='none'; document.getElementById('qtext').style.display='block'; document.getElementById('qtext').textContent=q?.question||'…'; },150);
+}
+function onType(e){
+  const val=e.target.value.trim();
+  document.getElementById('bSub').disabled=val.length<1;
+  if(!val){closeAuto();return;}
+  const q=dailyQs[G.mode]?.[G.q];
+  const hits=(q?.autocomplete||[]).filter(o=>o.toLowerCase().startsWith(val.toLowerCase())).slice(0,5);
+  if(!hits.length){closeAuto();return;}
+  const drop=document.getElementById('adrop'); drop.innerHTML=''; G.acIdx=-1;
+  hits.forEach(h=>{
+    const el=document.createElement('div'); el.className='ai-item';
+    el.innerHTML=`<mark>${h.substring(0,val.length)}</mark>${h.substring(val.length)}`;
+    el.addEventListener('mousedown',ev=>{ev.preventDefault();pickAuto(h);});
+    drop.appendChild(el);
+  });
+  drop.className='adrop op';
+}
+function onKey(e){
+  const items=document.getElementById('adrop').querySelectorAll('.ai-item');
+  if(e.key==='ArrowDown'){e.preventDefault();G.acIdx=Math.min(G.acIdx+1,items.length-1);items.forEach((it,i)=>it.classList.toggle('hl',i===G.acIdx));}
+  else if(e.key==='ArrowUp'){e.preventDefault();G.acIdx=Math.max(G.acIdx-1,-1);items.forEach((it,i)=>it.classList.toggle('hl',i===G.acIdx));}
+  else if(e.key==='Enter'){ if(G.acIdx>=0&&items[G.acIdx]){e.preventDefault();pickAuto(items[G.acIdx].textContent);}else submit(); }
+}
+function pickAuto(v){document.getElementById('ansInp').value=v;document.getElementById('bSub').disabled=false;closeAuto();}
+function closeAuto(){document.getElementById('adrop').className='adrop';}
+function submit(){
+  if(G.answered||G.over) return;
+  const val=document.getElementById('ansInp').value.trim();
+  if(!val) return;
+  const q=dailyQs[G.mode][G.q];
+  const n=s=>s.toLowerCase().replace(/^(the|a|an) /i,'').replace(/[^a-z0-9]/g,'').trim();
+  resolve(n(val)===n(q.answer)?'correct':'wrong',q);
+}
+function resolve(result,q){
+  G.answered=true; G.results.push(result);
+  const pts=result==='correct'?MCFG[G.mode].pts:0;
+  G.score+=pts;
+  const cat=q?.category||'General';
+  if(!profile.catStats[cat]) profile.catStats[cat]={correct:0,total:0};
+  profile.catStats[cat].total++;
+  if(result==='correct') profile.catStats[cat].correct++;
+  document.getElementById('gScore').textContent=G.score.toLocaleString();
+  document.getElementById('ansInp').disabled=true;
+  document.getElementById('bSub').disabled=true;
+  closeAuto(); syncLL(true);
+  showFb(result,q?.answer||'—',pts); renderLadder();
+  if(result==='wrong'){ stopTimer(); setTimeout(()=>endGame(false),1800); }
+  else {
+    const isLast=G.q+1>=TOTAL;
+    const nb=document.getElementById('bnext'); nb.className='bnext on'; nb.textContent=isLast?'See Results →':'Continue →';
+    if(isLast) stopTimer();
+  }
+}
+function showFb(result,ans,pts){
+  const el=document.getElementById('fb'),fi=document.getElementById('fbi'),fm=document.getElementById('fbm');
+  if(result==='correct'){el.className='fb fb-ok on';fi.textContent='✓';fm.innerHTML=`Correct! <span class="fbm">+${pts} pts</span>`;}
+  else if(result==='wrong'){el.className='fb fb-no on';fi.textContent='✗';fm.innerHTML=`Answer: <span class="fbm">${esc(ans)}</span>. Game over.`;}
+  else{el.className='fb fb-sk on';fi.textContent='→';fm.innerHTML=`Skipped. Answer: <span class="fbm">${esc(ans)}</span>`;}
+}
+function useSkip(){
+  if(G.skipUsed||G.answered||G.over) return;
+  G.skipUsed=true; syncLL();
+  const q=dailyQs[G.mode][G.q];
+  G.answered=true; G.results.push('skip');
+  document.getElementById('ansInp').disabled=true; document.getElementById('bSub').disabled=true; closeAuto();
+  const cat=q?.category||'General';
+  if(!profile.catStats[cat]) profile.catStats[cat]={correct:0,total:0};
+  profile.catStats[cat].total++;
+  showFb('skip',q?.answer||'—',0); renderLadder();
+  const isLast=G.q+1>=TOTAL;
+  const nb=document.getElementById('bnext'); nb.className='bnext on'; nb.textContent=isLast?'See Results →':'Continue →';
+  if(isLast) stopTimer();
+}
+function useHint(){
+  if(G.hintUsed||G.answered||G.over) return;
+  G.hintUsed=true; syncLL();
+  const q=dailyQs[G.mode][G.q];
+  const hb=document.getElementById('hintbox'); hb.className='hb on'; hb.textContent='💡 '+(q?.hint||'No hint available.');
+}
+function syncLL(off){
+  const so=G.skipUsed||off, ho=G.hintUsed||off;
+  ['llSkip','bSkip'].forEach(id=>document.getElementById(id).disabled=so);
+  ['llHint','bHint'].forEach(id=>document.getElementById(id).disabled=ho);
+}
+function nextQ(){ G.q++; if(G.q>=TOTAL){endGame(true);return;} renderLadder(); renderQ(); }
+function stopTimer(){ if(G?.timerInt){clearInterval(G.timerInt);G.timerInt=null;} }
+function confirmExit(){ if(G&&!G.over){if(confirm('Exit? Progress will be lost.'))stopTimer(),showPage('home');}else showPage('home'); }
+
+// ══════════════════════════════════════════════════════
+// END GAME
+// ══════════════════════════════════════════════════════
+async function endGame(completed){
+  G.over=true; stopTimer();
+  const correct=G.results.filter(r=>r==='correct').length;
+  const rung=G.results.length; const cfg=MCFG[G.mode];
+  dayRes[G.mode]={rung,score:G.score,time:G.timerSec,results:[...G.results]};
+  saveDayRes();
+  if(rung>(profile.bestRung[G.mode]||0)) profile.bestRung[G.mode]=rung;
+  profile.totalScore=(profile.totalScore||0)+G.score;
+  const yd=new Date(); yd.setDate(yd.getDate()-1);
+  if(profile.lastPlay!==TODAY){
+    profile.streak= profile.lastPlay===yd.toISOString().slice(0,10)?(profile.streak||0)+1:1;
+    profile.daysPlayed=(profile.daysPlayed||0)+1; profile.lastPlay=TODAY;
+  }
+  profile.history.unshift({date:TODAY,mode:G.mode,rung,score:G.score,time:G.timerSec,results:[...G.results]});
+  if(profile.history.length>50) profile.history=profile.history.slice(0,50);
+  saveProfile();
+  await submitScore(G.mode,rung,G.score,G.timerSec,G.results);
+
+  let emoji,title,sub;
+  if(!completed){emoji='💥';title='Game Over';sub=`Rung ${rung} on ${cfg.label}. Better tomorrow.`;}
+  else if(correct===10){emoji='🏆';title='Perfect!';sub=`All 10 on ${cfg.label} in ${fmt(G.timerSec)}!`;}
+  else if(correct>=8){emoji='🌟';title='Outstanding!';sub=`${correct}/10 on ${cfg.label}. Great run!`;}
+  else if(correct>=5){emoji='👏';title='Well done.';sub=`${correct}/10 on ${cfg.label}.`;}
+  else{emoji='🤔';title='Keep climbing.';sub=`${correct}/10. Come back tomorrow!`;}
+
+  document.getElementById('ovEm').textContent=emoji;
+  document.getElementById('ovT').textContent=title;
+  document.getElementById('ovS').textContent=sub+(sbUser?'':' Sign in to save globally!');
+  document.getElementById('ovRung').textContent=rung;
+  document.getElementById('ovScore').textContent=G.score.toLocaleString();
+  document.getElementById('ovTime').textContent=fmt(G.timerSec);
+  document.getElementById('ovStr').style.background=cfg.color;
+  const me={easy:'🟢',medium:'🟡',hard:'🔴'}[G.mode];
+  const rungs=G.results.map(r=>r==='correct'?'🟩':r==='wrong'?'🟥':'🟨').join('');
+  const shareStr=`The Climb — ${cfg.label} — ${TODAY}\n${me} ${rungs}\nRung ${rung}  ·  ${G.score.toLocaleString()} pts  ·  ${fmt(G.timerSec)}\ntheclimb.com`;
+  document.getElementById('shareBox').textContent=shareStr;
+  window._shareStr=shareStr;
+  setTimeout(()=>document.getElementById('overlay').className='ov on',600);
+  document.getElementById('streakNum').textContent=profile.streak||0;
+}
+function copyResult(){ navigator.clipboard.writeText(window._shareStr||'').then(()=>toast('Copied!')).catch(()=>toast('Copied!')); }
+function closeOverlay(){ document.getElementById('overlay').className='ov'; showPage('home'); refreshHome(); }
+
+// ══════════════════════════════════════════════════════
+// PROFILE
+// ══════════════════════════════════════════════════════
+function saveName(){
+  const v=document.getElementById('nameInp').value.trim();
+  if(!v){toast('Enter a name first!');return;}
+  profile.name=v; saveProfile();
+  document.getElementById('phName').textContent=v;
+  if(sb&&sbUser) sb.auth.updateUser({data:{display_name:v}});
+  toast('Name saved!');
+}
+function renderProfile(){
+  const n=profile.name||(sbUser?.user_metadata?.display_name)||'Guest Player';
+  document.getElementById('phName').textContent=n;
+  document.getElementById('phSub').textContent=sbUser?`Signed in as ${sbUser.email}`:'Playing locally — sign in to sync';
+  document.getElementById('phAv').textContent=n.slice(0,1).toUpperCase();
+  document.getElementById('nameInp').value=profile.name||'';
+  document.getElementById('pDays').textContent=profile.daysPlayed||0;
+  document.getElementById('pStreak').textContent=(profile.streak||0)+' 🔥';
+  document.getElementById('pBE').textContent=profile.bestRung?.easy||'—';
+  document.getElementById('pBM').textContent=profile.bestRung?.medium||'—';
+  document.getElementById('pBH').textContent=profile.bestRung?.hard||'—';
+  document.getElementById('pTotal').textContent=(profile.totalScore||0).toLocaleString();
+  const cb=document.getElementById('catBars'); cb.innerHTML='';
+  const cats=Object.entries(profile.catStats||{}).sort((a,b)=>b[1].total-a[1].total).slice(0,8);
+  if(!cats.length){cb.innerHTML='<p style="font-size:13px;color:var(--tm)">Play some games to see stats!</p>';}
+  cats.forEach(([cat,st])=>{
+    const pct=st.total>0?Math.round(st.correct/st.total*100):0;
+    const col=pct>=70?'#3EE07A':pct>=40?'#F6CB3A':'#F06565';
+    cb.innerHTML+=`<div class="cbr"><div class="cbl">${esc(cat)}</div><div class="cbt"><div class="cbf" style="width:${pct}%;background:${col}"></div></div><div class="cbp">${pct}%</div></div>`;
+  });
+  const tb=document.getElementById('histBody'); tb.innerHTML='';
+  if(!profile.history.length){tb.innerHTML='<tr><td colspan="5" style="color:var(--tm);font-size:12px;padding:14px 0;">No games yet!</td></tr>';}
+  profile.history.slice(0,10).forEach(h=>{
+    const chip=`<span class="mchip ch${h.mode[0]}">${h.mode}</span>`;
+    tb.innerHTML+=`<tr><td style="color:var(--tm);font-size:11px;">${h.date}</td><td>${chip}</td><td style="font-family:'Instrument Mono',monospace;">${h.rung}</td><td style="font-family:'Instrument Mono',monospace;">${(h.score||0).toLocaleString()}</td><td style="font-family:'Instrument Mono',monospace;">${fmt(h.time||0)}</td></tr>`;
+  });
+  const cg=document.getElementById('calGrid'); cg.innerHTML='';
+  const countByDate={};
+  profile.history.forEach(h=>{ countByDate[h.date]=(countByDate[h.date]||0)+1; });
+  for(let i=27;i>=0;i--){
+    const d=new Date(); d.setDate(d.getDate()-i);
+    const key=d.toISOString().slice(0,10);
+    const cnt=countByDate[key]||0;
+    const el=document.createElement('div');
+    el.className='cd'+(cnt>0?' p'+Math.min(cnt,3):'')+(key===TODAY?' tod':'');
+    el.title=key+(cnt>0?` — ${cnt} mode${cnt>1?'s':''} played`:'');
+    cg.appendChild(el);
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════
+const fmt=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'; setTimeout(()=>t.className='toast',2400); }
+</script>
+</body>
+</html>
