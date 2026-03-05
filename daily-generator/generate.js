@@ -13,7 +13,7 @@ require('dotenv').config();
 const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
 
-// ── Config (set these in .env file) ──────────────────────────────────────
+// ── Config (set these in .env file) ──────────────────────────────────────────
 const ANTHROPIC_KEY  = process.env.ANTHROPIC_API_KEY;
 const SUPABASE_URL   = process.env.SUPABASE_URL;
 const SUPABASE_KEY   = process.env.SUPABASE_SERVICE_KEY; // Use SERVICE key here (not anon)
@@ -62,7 +62,7 @@ async function main() {
   }
 
   console.log(`📝 Generating questions for: ${modesToGenerate.join(', ')}\n`);
-  
+
   for (const mode of modesToGenerate) {
     try {
       console.log(`  ⏳ Generating ${mode} questions...`);
@@ -78,7 +78,7 @@ async function main() {
   console.log('🏆 All done! Today\'s questions are ready.\n');
 }
 
-// ── Generate 10 questions for a mode ────────────────────────────────────────────
+// ── Generate 10 questions for a mode ──────────────────────────────────────────
 async function generateQuestions(mode) {
   const prompt = `Generate exactly 10 trivia questions for a daily trivia game.
 
@@ -109,7 +109,7 @@ Important rules:
 - ${mode === 'easy' ? 'For easy: think Wordle-level accessibility. Should feel winnable.' : ''}`;
 
   const message = await anthropic.messages.create({
-    model: 'claude-opus-4-6',  // Use Opus for best quality daily questions
+    model: 'claude-haiku-4-5-20251001',  // Haiku: fast, cheap, great for trivia
     max_tokens: 4000,
     messages: [{ role: 'user', content: prompt }]
   });
