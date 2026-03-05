@@ -88,5 +88,69 @@ header{border-bottom:1px solid var(--b1);padding:0 20px;height:54px;display:flex
 .ds-dot.dm{background:var(--med);border-color:var(--med);box-shadow:0 0 6px var(--med);}
 .ds-dot.dh{background:var(--hard);border-color:var(--hard);box-shadow:0 0 6px var(---hard);}
 .ds-pts{font-family:'Playfair Display',serif;font-size:18px;color:var(--goldl);}
-.cards{display:flex;flex-direction:column;gap:11px;margin-bottom:20px;}
-.card{border:1px solid var(--b1);border-radius:var(--rl);padding:20px,22px;cursor:pointer;transition:all 0.22s;background:var(--s1);position:relative;overflow:hidden;} !!! EUD CHUNK 1
+.mcards{display:flex;flex-direction:column;gap:11px;margin-bottom:20px;}
+.mcard{border:1px solid var(--b1);border-radius:var(--rl);padding:20px 22px;cursor:pointer;transition:all 0.22s;background:var(--s1);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:14px;}
+.mc-shine{position:absolute;inset:0;opacity:0;transition:opacity 0.25s;}
+.ec .mc-shine{background:var(--easy-g);}
+.mc2 .mc-shine{background:var(--med-g);}
+.hc .mc-shine{background:var(--hard-g);}
+.mcard:hover{transform:translateY(-2px);}
+.ec:hover{border-color:var(--easy-b);box-shadow:0 6px 28px rgba(62,224,122,0.07);}
+.mc2:hover{border-color:var(--med-b);box-shadow:0 6px 28px rgba(246,203,58,0.07);}
+.hc:hover{border-color:var(--hard-b);box-shadow:0 6px 28px rgba(240,101,101,0.07);}
+.mcard:hover .mc-shine{opacity:1;}
+.mcard.played{opacity:0.44;cursor:default;pointer-events:none;}
+.mc-l{position:relative;z-index:1;}
+.mc-n{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:5px;}
+.ec .mc-n{color:var(--easy);} .mc2 .mc-n{color:var(--med);} .hc .mc-n{color:var(--hard);}
+.mc-name{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;margin-bottom:3px;}
+.mc-desc{font-size:12px;color:var(--tm);line-height:1.45;}
+.mc-badge{display:inline-flex;align-items:center;gap:4px;margin-top:9px;padding:3px 8px;border-radius:100px;font-size:10px;font-family:'Instrument Mono',monospace;}
+.mc-badge.np{background:var(--s2);color:var(--tm);border:1px solid var(--b2);}
+.mc-badge.dn{background:rgba(62,224,122,0.1);color:var(--easy);border:1px solid var(--easy-b);}
+.mc-r{position:relative;z-index:1;text-align:right;flex-shrink:0;}
+.mc-rung{font-family:'Playfair Display',serif;font-size:30px;font-weight:900;line-height:1;}
+.ec .mc-rung{color:var(--easy);} .mc2 .mc-rung{color:var(--med);} .hc .mc-rung{color:var(--hard);}
+.mc-rl{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--tm);margin-top:2px;}
+.mc-time{font-family:'Instrument Mono',monospace;font-size:11px;color:var(--tm);margin-top:3px;}
+
+/* ── LEADERBOARD ── */
+#pgLeader{padding:24px 20px 80px;max-width:620px;margin:0 auto;width:100%;}
+.lb-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:gap;}
+.lb-hdr h2{font-family:'Playfair Display',serif;font-size:26px;font-weight:900;}
+.lb-tabs{display:flex;gap:4px;background:var(--s2);border:1px solid var(--b1);border-radius:100px;padding:3px;}
+.lb-tab{padding:5px 14px;border-radius:100px;font-family:'Instrument Mono',monospace;font-size:11px;cursor:pointer;border:none;background:none;color:var(--tm);transition:all 0.15s;}
+.lb-tab.on{background:var(--s3);color:var(--tx);}
+.lb-mtabs{display:flex;gap:6px;margin-bottom:16px;}
+.lmt{padding:6px 14px;border-radius:100px;font-family:'Instrument Mono',monospace;font-size:11px;cursor:pointer;border:1px solid var(--b2);background:none;color:var(--tm);transition:all 0.15s;}
+.lmt:hover{color:var(--tx);}
+.lmt.on.et{border-color:var(--easy-b);color:var(--easy);background:var(--easy-g);}
+.lmt.on.mt{border-color:var(--med-b);color:var(--med);background:var(--med-g);}
+.lmt.on.ht{border-color:var(--hard-b);color:var(--hard);background:var(--hard-g);}
+
+.fcb{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:18px 20px;margin-bottom:20px;}
+.fcb-t{font-family:'Instrument Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--tm);margin-bottom:8px;}
+.fcb-d{font-size:13px;color:var(--tm);margin-bottom:12px;line-height:1.5;}
+.fcb-row{display:flex;gap:8px;}
+.fcb-inp{flex:1;padding:9px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);color:var(--tx);font-family:'Instrument Mono',monospace;font-size:11px;outline:none;}
+.fcb-inp:focus{border-color:var(--goldl);}
+.fbtn{padding:9px 14px;border:none;border-radius:var(--r);font-family:'Instrument Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:opacity 0.15s;}
+.fbtn.p{background:var(--tx);color:var(--bg);}
+.fbtn.p:hover{opacity:0.85;}
+.fbtn.s{background:var(--s3);border:1px solid var(--b2);color:var(--tm);}
+.fbtn.s:hover{color:var(--tx);}
+
+.lb-tbl{width:100%;border-collapse:collapse;}
+.lb-tbl th{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--tm);padding:0 10px 10px 0;text-align:left;border-bottom:1px solid var(--b1);}
+.lb-tbl td{padding:13px 10px 13px 0;border-bottom:1px solid var(--b1);font-size:13px;vertical-align:middle;}
+.lb-tbl tr:last-child td{border-bottom:none;}
+.lb-tbl tr.me td{background:rgba(200,150,46,0.05);}
+.lb-rank{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--tm);width:36px;}
+.lb-rank.gd{color:var(--goldl);} .lb-rank.sv{color:#AAB0BB;} .lb-rank.br{color:#C4855A;}
+.lb-nm{font-weight:500;}
+.lb-nm .you{font-size:10px;font-family:'Instrument Mono',monospace;color:var(--goldl);margin-left:6px;}
+.lb-rung{font-family:'Instrument Mono',monospace;font-weight:500;}
+.lb-time{font-family:'Instrument Mono',monospace;font-size:12px;color:var(--tm);}
+.lb-sc{font-family:'Playfair Display',serif;font-size:16px;color:var(--goldl);}
+.lb-empty{text-align:center;padding:40px;color:var(--tm);font-size:14px;line-height:1.7;}
+.lb-loading{text-align:center;padding:32px;color:var(--tm);font-family:'Instrument Mono',monospace;font-size:12px;letter-spacing:1px;}
