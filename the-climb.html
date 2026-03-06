@@ -869,7 +869,9 @@ function submit(){
   const val=document.getElementById('ansInp').value.trim();
   if(!val) return;
   const q=dailyQs[G.mode][G.q];
-  const n=s=>s.toLowerCase().replace(/^(the|a|an) /i,'').replace(/[^a-z0-9]/g,'').trim();
+  const NW={zero:'0',one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10',eleven:'11',twelve:'12',thirteen:'13',fourteen:'14',fifteen:'15',sixteen:'16',seventeen:'17',eighteen:'18',nineteen:'19',twenty:'20',thirty:'30',forty:'40',fifty:'50',sixty:'60',seventy:'70',eighty:'80',ninety:'90',hundred:'100'};
+  const numNorm=s=>s.replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)\b/gi,m=>NW[m.toLowerCase()]||m);
+  const n=s=>{let r=s.toLowerCase().replace(/^(the|a|an)\s+/i,''); r=numNorm(r); return r.replace(/[^a-z0-9]/g,'').trim();};
   resolve(n(val)===n(q.answer)?'correct':'wrong',q);
 }
 function resolve(result,q){
@@ -885,17 +887,14 @@ function resolve(result,q){
   document.getElementById('bSub').disabled=true;
   closeAuto(); syncLL(true);
   showFb(result,q?.answer||'—',pts); renderLadder();
-  if(result==='wrong'){ stopTimer(); setTimeout(()=>endGame(false),1800); }
-  else {
-    const isLast=G.q+1>=TOTAL;
-    const nb=document.getElementById('bnext'); nb.className='bnext on'; nb.textContent=isLast?'See Results →':'Continue →';
-    if(isLast) stopTimer();
-  }
+  const isLast=G.q+1>=TOTAL;
+  const nb=document.getElementById('bnext'); nb.className='bnext on'; nb.textContent=isLast?'See Results →':'Continue →';
+  if(isLast||result==='wrong') stopTimer();
 }
 function showFb(result,ans,pts){
   const el=document.getElementById('fb'),fi=document.getElementById('fbi'),fm=document.getElementById('fbm');
   if(result==='correct'){el.className='fb fb-ok on';fi.textContent='✓';fm.innerHTML=`Correct! <span class="fbm">+${pts} pts</span>`;}
-  else if(result==='wrong'){el.className='fb fb-no on';fi.textContent='✗';fm.innerHTML=`Answer: <span class="fbm">${esc(ans)}</span>. Game over.`;}
+  else if(result==='wrong'){el.className='fb fb-no on';fi.textContent='✗';fm.innerHTML=`Answer: <span class="fbm">${esc(ans)}</span>`;}
   else{el.className='fb fb-sk on';fi.textContent='→';fm.innerHTML=`Skipped. Answer: <span class="fbm">${esc(ans)}</span>`;}
 }
 function useSkip(){
@@ -916,7 +915,12 @@ function useHint(){
   if(G.hintUsed||G.answered||G.over) return;
   G.hintUsed=true; syncLL();
   const q=dailyQs[G.mode][G.q];
-  const hb=document.getElementById('hintbox'); hb.className='hb on'; hb.textContent='💡 '+(q?.hint||'No hint available.');
+  const ans=q?.answer||'';
+  const firstLetter=ans.charAt(0).toUpperCase();
+  const letterCount=ans.replace(/\s/g,'').length;
+  const hintText=q?.hint||'No hint available.';
+  const hb=document.getElementById('hintbox'); hb.className='hb on';
+  hb.textContent=`💡 ${hintText} • ${letterCount} letters, starts with "${firstLetter}"`;
 }
 function syncLL(off){
   const so=G.skipUsed||off, ho=G.hintUsed||off;
@@ -949,11 +953,11 @@ async function endGame(completed){
   await submitScore(G.mode,rung,G.score,G.timerSec,G.results);
 
   let emoji,title,sub;
-  if(!completed){emoji='💥';title='Game Over';sub=`Rung ${rung} on ${cfg.label}. Better tomorrow.`;}
-  else if(correct===10){emoji='🏆';title='Perfect!';sub=`All 10 on ${cfg.label} in ${fmt(G.timerSec)}!`;}
+  if(correct===10){emoji='🏆';title='Perfect!';sub=`All 10 on ${cfg.label} in ${fmt(G.timerSec)}!`;}
   else if(correct>=8){emoji='🌟';title='Outstanding!';sub=`${correct}/10 on ${cfg.label}. Great run!`;}
   else if(correct>=5){emoji='👏';title='Well done.';sub=`${correct}/10 on ${cfg.label}.`;}
-  else{emoji='🤔';title='Keep climbing.';sub=`${correct}/10. Come back tomorrow!`;}
+  else if(correct>0){emoji='🤔';title='Keep climbing.';sub=`${correct}/10. Come back tomorrow!`;}
+  else{emoji='💥';title='Tough one.';sub=`0/10 on ${cfg.label}. Better tomorrow.`;}
 
   document.getElementById('ovEm').textContent=emoji;
   document.getElementById('ovT').textContent=title;
