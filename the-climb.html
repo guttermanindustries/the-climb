@@ -518,6 +518,20 @@ header{border-bottom:1px solid var(--b1);padding:0 20px;height:54px;display:flex
   </div>
 </div>
 
+<!-- LOSS POPUP -->
+<div class="ov" id="lossPopup">
+  <div class="ovc">
+    <div class="ov-str" style="background:var(--err)"></div>
+    <span class="ov-em">😬</span>
+    <h2 class="ov-t">You fell off!</h2>
+    <p class="ov-s">You made it to <strong>rung <span id="lpRung"></span></strong> — that's your official score of <strong><span id="lpScore"></span> pts</strong>.<br><br>Want to keep climbing anyway? You can see the rest of the questions for fun — no score from here on.</p>
+    <div class="ov-btns">
+      <button class="obp" onclick="closeLossPopup()">Keep Climbing (Fun Mode) →</button>
+      <button class="obs" onclick="endGameFromLoss()">See My Results →</button>
+    </div>
+  </div>
+</div>
+
 <!-- AUTH MODAL -->
 <div class="modal-ov" id="authModal">
   <div class="modal">
@@ -566,7 +580,7 @@ let G = null;
 let lbState = {scope:'global',mode:'easy'};
 let authMode = 'signin';
 
-function newG(m){ return {mode:m,q:0,score:0,results:[],skipUsed:false,hintUsed:false,answered:false,acIdx:-1,timerSec:0,timerInt:null,over:false,rungs:[],pickedQ:null}; }
+function newG(m){ return {mode:m,q:0,score:0,results:[],skipsLeft:2,hintsLeft:2,answered:false,acIdx:-1,timerSec:0,timerInt:null,over:false,rungs:[],pickedQ:null,lost:false,lostAtRung:0}; }
 function dealRungs(questions){
   const bycat={};
   questions.forEach(q=>{const c=q.category||'General Knowledge';if(!bycat[c])bycat[c]=[];bycat[c].push(q);});
@@ -904,12 +918,21 @@ function onType(e){
   document.getElementById('bSub').disabled=val.length<1;
   if(!val){closeAuto();return;}
   const q=G.pickedQ;
-  const hits=(q?.autocomplete||[]).filter(o=>o.toLowerCase().startsWith(val.toLowerCase())).slice(0,5);
-  if(!hits.length){closeAuto();return;}
+  const ansLen=(q?.answer||'').replace(/\s/g,'').length;
+  // Don't show autocomplete until 3+ chars (unless answer is very short)
+  if(val.length<3&&ansLen>3){closeAuto();return;}
+  const allOpts=q?.autocomplete||[];
+  if(!allOpts.length){closeAuto();return;}
   const drop=document.getElementById('adrop'); drop.innerHTML=''; G.acIdx=-1;
-  hits.forEach(h=>{
+  // Always show ALL options unfiltered — prevents brute-forcing by typing
+  allOpts.slice(0,6).forEach(h=>{
     const el=document.createElement('div'); el.className='ai-item';
-    el.innerHTML=`<mark>${h.substring(0,val.length)}</mark>${h.substring(val.length)}`;
+    // Highlight match only if option starts with typed text
+    if(h.toLowerCase().startsWith(val.toLowerCase())){
+      el.innerHTML=`<mark>${h.substring(0,val.length)}</mark>${h.substring(val.length)}`;
+    } else {
+      el.textContent=h;
+    }
     el.addEventListener('mousedown',ev=>{ev.preventDefault();pickAuto(h);});
     drop.appendChild(el);
   });
@@ -931,24 +954,40 @@ function submit(){
   const NW={zero:'0',one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10',eleven:'11',twelve:'12',thirteen:'13',fourteen:'14',fifteen:'15',sixteen:'16',seventeen:'17',eighteen:'18',nineteen:'19',twenty:'20',thirty:'30',forty:'40',fifty:'50',sixty:'60',seventy:'70',eighty:'80',ninety:'90',hundred:'100'};
   const numNorm=s=>s.replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)\b/gi,m=>NW[m.toLowerCase()]||m);
   const n=s=>{let r=s.toLowerCase().replace(/^(the|a|an)\s+/i,''); r=numNorm(r); return r.replace(/[^a-z0-9]/g,'').trim();};
-  resolve(n(val)===n(q.answer)?'correct':'wrong',q);
+  // Accept if exact match OR if user typed extra words containing the answer (e.g. "College Basketball" when answer is "Basketball")
+  const nVal=n(val), nAns=n(q.answer);
+  const isCorrect=nVal===nAns||nVal.includes(nAns);
+  resolve(isCorrect?'correct':'wrong',q);
 }
 function resolve(result,q){
   G.answered=true; G.results.push(result);
-  const pts=result==='correct'?MCFG[G.mode].pts:0;
+  const isFirstWrong=result==='wrong'&&!G.lost;
+  if(isFirstWrong){ G.lost=true; G.lostAtRung=G.q+1; }
+  // No points after losing (score is frozen at the rung you fell)
+  const pts=(result==='correct'&&!G.lost)?MCFG[G.mode].pts:0;
   G.score+=pts;
   const cat=q?.category||'General';
   if(!profile.catStats[cat]) profile.catStats[cat]={correct:0,total:0};
   profile.catStats[cat].total++;
-  if(result==='correct') profile.catStats[cat].correct++;
+  if(result==='correct'&&!G.lost) profile.catStats[cat].correct++;
   document.getElementById('gScore').textContent=G.score.toLocaleString();
   document.getElementById('ansInp').disabled=true;
   document.getElementById('bSub').disabled=true;
   closeAuto(); syncLL(true);
   showFb(result,q?.answer||'—',pts); renderLadder();
   const isLast=G.q+1>=TOTAL;
-  const nb=document.getElementById('bnext'); nb.className='bnext on'; nb.textContent=isLast?'See Results →':'Continue →';
-  if(isLast||result==='wrong') stopTimer();
+  if(isLast||isFirstWrong) stopTimer();
+  if(isFirstWrong){
+    // Show loss popup after brief delay (don't show Continue yet)
+    setTimeout(()=>{
+      document.getElementById('lpRung').textContent=G.lostAtRung;
+      document.getElementById('lpScore').textContent=G.score.toLocaleString();
+      document.getElementById('lossPopup').className='ov on';
+    },900);
+  } else {
+    const nb=document.getElementById('bnext'); nb.className='bnext on';
+    nb.textContent=isLast?'See Results →':(G.lost?'Continue (Fun Mode) →':'Continue →');
+  }
 }
 function showFb(result,ans,pts){
   const el=document.getElementById('fb'),fi=document.getElementById('fbi'),fm=document.getElementById('fbm');
@@ -957,8 +996,8 @@ function showFb(result,ans,pts){
   else{el.className='fb fb-sk on';fi.textContent='→';fm.innerHTML=`Skipped. Answer: <span class="fbm">${esc(ans)}</span>`;}
 }
 function useSkip(){
-  if(G.skipUsed||G.answered||G.over) return;
-  G.skipUsed=true; syncLL();
+  if(G.skipsLeft<=0||G.answered||G.over) return;
+  G.skipsLeft--; syncLL();
   const q=G.pickedQ;
   G.answered=true; G.results.push('skip');
   document.getElementById('ansInp').disabled=true; document.getElementById('bSub').disabled=true; closeAuto();
@@ -971,8 +1010,8 @@ function useSkip(){
   if(isLast) stopTimer();
 }
 function useHint(){
-  if(G.hintUsed||G.answered||G.over) return;
-  G.hintUsed=true; syncLL();
+  if(G.hintsLeft<=0||G.answered||G.over) return;
+  G.hintsLeft--; syncLL();
   const q=G.pickedQ;
   const ans=q?.answer||'';
   const letterCount=ans.replace(/\s/g,'').length;
@@ -982,9 +1021,15 @@ function useHint(){
   hb.textContent=`💡 ${hintText}${letterHint}`;
 }
 function syncLL(off){
-  const so=G.skipUsed||off, ho=G.hintUsed||off;
-  ['llSkip','bSkip'].forEach(id=>document.getElementById(id).disabled=so);
-  ['llHint','bHint'].forEach(id=>document.getElementById(id).disabled=ho);
+  const so=G.skipsLeft<=0||off, ho=G.hintsLeft<=0||off;
+  ['llSkip','bSkip'].forEach(id=>{
+    const el=document.getElementById(id); el.disabled=so;
+    el.textContent=id.startsWith('ll')?`🔀 Skip (${G.skipsLeft})`:`🔀 Skip (${G.skipsLeft})`;
+  });
+  ['llHint','bHint'].forEach(id=>{
+    const el=document.getElementById(id); el.disabled=ho;
+    el.textContent=`💡 Hint (${G.hintsLeft})`;
+  });
 }
 function nextQ(){ G.q++; if(G.q>=TOTAL){endGame(true);return;} renderLadder(); renderCategoryPick(); }
 function stopTimer(){ if(G?.timerInt){clearInterval(G.timerInt);G.timerInt=null;} }
@@ -996,7 +1041,8 @@ function confirmExit(){ if(G&&!G.over){if(confirm('Exit? Progress will be lost.'
 async function endGame(completed){
   G.over=true; stopTimer();
   const correct=G.results.filter(r=>r==='correct').length;
-  const rung=G.results.length; const cfg=MCFG[G.mode];
+  // Official rung = where you fell (if lost), otherwise total answered
+  const rung=G.lost?G.lostAtRung:G.results.length; const cfg=MCFG[G.mode];
   dayRes[G.mode]={rung,score:G.score,time:G.timerSec,results:[...G.results]};
   saveDayRes();
   if(rung>(profile.bestRung[G.mode]||0)) profile.bestRung[G.mode]=rung;
@@ -1035,6 +1081,13 @@ async function endGame(completed){
 }
 function copyResult(){ navigator.clipboard.writeText(window._shareStr||'').then(()=>toast('Copied!')).catch(()=>toast('Copied!')); }
 function closeOverlay(){ document.getElementById('overlay').className='ov'; showPage('home'); refreshHome(); }
+function closeLossPopup(){
+  document.getElementById('lossPopup').className='ov';
+  const isLast=G.q+1>=TOTAL;
+  const nb=document.getElementById('bnext'); nb.className='bnext on';
+  nb.textContent=isLast?'See Results →':'Continue (Fun Mode) →';
+}
+function endGameFromLoss(){ document.getElementById('lossPopup').className='ov'; endGame(false); }
 
 // ══════════════════════════════════════════════════════
 // PROFILE
