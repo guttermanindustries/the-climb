@@ -215,16 +215,22 @@ header{border-bottom:1px solid var(--b1);padding:0 20px;height:54px;display:flex
 .gtimer.tw{color:var(--hard);}
 .gexit{font-size:11px;color:var(--tm);cursor:pointer;padding:4px 9px;border-radius:var(--r);border:1px solid var(--b2);background:none;font-family:'Instrument Mono',monospace;transition:all 0.15s;}
 .gexit:hover{color:var(--tx);border-color:var(--b3);}
-.lad-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
-.lad-lbl{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--tm);}
-.lad-ctr{font-family:'Playfair Display',serif;font-size:20px;}
-.lad-ctr span{color:var(--tm);font-size:14px;}
-.ladder{display:flex;gap:4px;align-items:flex-end;height:42px;margin-bottom:20px;}
-.rung{flex:1;border-radius:3px;transition:all 0.38s cubic-bezier(0.34,1.56,0.64,1);}
-.rung.emp{background:var(--b1);height:35%;}
-.rung.act{height:72%;animation:rb 1.8s ease-in-out infinite;}
-.rung.re{background:var(--easy);} .rung.rm{background:var(--med);} .rung.rh{background:var(--hard);}
-.rung.ok{background:var(--ok);height:100%;} .rung.no{background:var(--err);height:100%;} .rung.sk{background:var(--warn);height:52%;}
+/* ── VERTICAL LADDER ── */
+.game-body{display:flex;gap:16px;align-items:flex-start;}
+.vlad-col{flex-shrink:0;width:128px;display:flex;flex-direction:column;align-items:center;}
+.vlad-lbl{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--tm);margin-bottom:8px;}
+.vlad{position:relative;width:128px;height:360px;}
+.vlad-rail-l{position:absolute;left:5px;top:0;bottom:0;width:11px;background:linear-gradient(180deg,var(--b2),var(--b1));border-radius:6px;}
+.vlad-rail-r{position:absolute;right:5px;top:0;bottom:0;width:11px;background:linear-gradient(180deg,var(--b2),var(--b1));border-radius:6px;}
+.vlad-rungs{position:absolute;inset:0;display:flex;flex-direction:column-reverse;justify-content:space-between;padding:10px 0;}
+.vrung{margin:0 13px;height:24px;border-radius:5px;display:flex;align-items:center;padding:0 8px;font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:0.5px;transition:all 0.35s;gap:4px;}
+.vrung.vok{background:var(--ok);color:#fff;box-shadow:0 0 8px rgba(21,128,61,0.35);}
+.vrung.vno{background:var(--err);color:#fff;box-shadow:0 0 8px rgba(185,28,28,0.35);}
+.vrung.vact{background:var(--gold);color:#fff;box-shadow:0 0 12px rgba(146,97,10,0.5);animation:rb 1.8s ease-in-out infinite;}
+.vrung.vemp{background:var(--s2);border:1.5px dashed var(--b2);color:var(--b3);}
+.vrung-num{opacity:0.65;flex-shrink:0;}
+.vrung-label{flex:1;text-align:right;}
+.game-main{flex:1;min-width:0;}
 @keyframes rb{0%,100%{opacity:1;}50%{opacity:0.3;}}
 .srow{display:flex;gap:9px;margin-bottom:16px;}
 .sb{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:10px 14px;flex:1;}
@@ -330,9 +336,21 @@ header{border-bottom:1px solid var(--b1);padding:0 20px;height:54px;display:flex
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(14px);background:var(--tx);color:var(--bg);padding:8px 18px;border-radius:100px;font-size:12px;font-weight:500;opacity:0;transition:all 0.2s;z-index:999;white-space:nowrap;pointer-events:none;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
-@media(max-width:480px){
+/* ── FOOTER ── */
+.site-footer{text-align:center;padding:28px 20px;font-family:'Instrument Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--td);border-top:1px solid var(--b1);margin-top:auto;}
+.site-footer a{color:var(--td);text-decoration:none;}
+.site-footer a:hover{color:var(--tm);}
+
+@media(max-width:520px){
   .qt{font-size:17px;} .qcard{padding:18px 14px;} .ovc{padding:26px 16px;}
   .mcard{padding:14px 16px;} header,#pgLeader,.home-body,#pgProfile{padding-left:14px;padding-right:14px;}
+  .game-body{flex-direction:column;}
+  .vlad-col{width:100%;}
+  .vlad{width:100%;height:180px;}
+  .vlad-rungs{flex-direction:row!important;padding:0 10px!important;}
+  .vrung{flex:1;margin:14px 0!important;height:auto!important;min-height:130px;flex-direction:column;justify-content:space-between;padding:8px 4px!important;font-size:8px;}
+  .vlad-rail-l{left:0;right:0;top:5px;bottom:auto;width:100%!important;height:11px!important;}
+  .vlad-rail-r{display:none;}
 }
 </style>
 </head>
@@ -462,38 +480,45 @@ header{border-bottom:1px solid var(--b1);padding:0 20px;height:54px;display:flex
     <div class="gtimer" id="gtimer">0:00</div>
     <button class="gexit" onclick="confirmExit()">← Exit</button>
   </div>
-  <div class="lad-meta"><div class="lad-lbl">Ladder</div><div class="lad-ctr" id="ladCtr">1 <span>/ 10</span></div></div>
-  <div class="ladder" id="ladder"></div>
-  <div class="srow">
-    <div class="sb"><div class="sb-l">Rung</div><div class="sb-v" id="gRung">1</div></div>
-    <div class="sb"><div class="sb-l">Score</div><div class="sb-v gv" id="gScore">0</div></div>
-    <div class="llbox">
-      <button class="llc" id="llSkip" onclick="useSkip()">🔀 Skip</button>
-      <button class="llc" id="llHint" onclick="useHint()">💡 Hint</button>
+  <div class="game-body">
+    <!-- Left: vertical ladder -->
+    <div class="vlad-col">
+      <div class="vlad-lbl">Ladder</div>
+      <div class="vlad" id="ladder"></div>
     </div>
-  </div>
-  <!-- Category picker (shown before each question) -->
-  <div id="catPick" style="display:none;">
-    <div class="cp-label">Choose your category</div>
-    <div class="cp-cards" id="cpCards"></div>
-  </div>
-  <!-- Question area (shown after picking a category) -->
-  <div id="qarea" style="display:none;">
-    <div class="catrow"><div class="ctag" id="catTag">—</div><div class="ptag" id="ptag">+100</div></div>
-    <div class="qcard">
-      <div class="qs" id="qstripe"></div>
-      <div id="qskel"><div class="sk sk1"></div><div class="sk sk2"></div></div>
-      <div class="qt" id="qtext" style="display:none;"></div>
-      <div class="hb" id="hintbox"></div>
+    <!-- Right: score + content -->
+    <div class="game-main">
+      <div class="srow">
+        <div class="sb"><div class="sb-l">Score</div><div class="sb-v gv" id="gScore">0</div></div>
+        <div class="llbox">
+          <button class="llc" id="llSkip" onclick="useSkip()">🔀 Skip (1)</button>
+          <button class="llc" id="llHint" onclick="useHint()">💡 Hint (1)</button>
+        </div>
+      </div>
+      <!-- Category picker (shown before each question) -->
+      <div id="catPick" style="display:none;">
+        <div class="cp-label">Choose your category</div>
+        <div class="cp-cards" id="cpCards"></div>
+      </div>
+      <!-- Question area (shown after picking a category) -->
+      <div id="qarea" style="display:none;">
+        <div class="catrow"><div class="ctag" id="catTag">—</div><div class="ptag" id="ptag">+100</div></div>
+        <div class="qcard">
+          <div class="qs" id="qstripe"></div>
+          <div id="qskel"><div class="sk sk1"></div><div class="sk sk2"></div></div>
+          <div class="qt" id="qtext" style="display:none;"></div>
+          <div class="hb" id="hintbox"></div>
+        </div>
+        <div class="fb" id="fb"><span id="fbi"></span><span id="fbm"></span></div>
+        <div class="aw"><input class="ai" id="ansInp" type="text" placeholder="Type your answer…" autocomplete="off" spellcheck="false"/><div class="adrop" id="adrop"></div></div>
+        <div class="arow">
+          <button class="btn bg2" id="bSkip" onclick="useSkip()">🔀 Skip (1)</button>
+          <button class="btn bg2" id="bHint" onclick="useHint()">💡 Hint (1)</button>
+          <button class="btn bp"  id="bSub"  onclick="submit()" disabled>Submit →</button>
+        </div>
+        <button class="bnext" id="bnext" onclick="nextQ()">Continue →</button>
+      </div>
     </div>
-    <div class="fb" id="fb"><span id="fbi"></span><span id="fbm"></span></div>
-    <div class="aw"><input class="ai" id="ansInp" type="text" placeholder="Type your answer…" autocomplete="off" spellcheck="false"/><div class="adrop" id="adrop"></div></div>
-    <div class="arow">
-      <button class="btn bg2" id="bSkip" onclick="useSkip()">🔀 Skip</button>
-      <button class="btn bg2" id="bHint" onclick="useHint()">💡 Hint</button>
-      <button class="btn bp"  id="bSub"  onclick="submit()" disabled>Submit →</button>
-    </div>
-    <button class="bnext" id="bnext" onclick="nextQ()">Continue →</button>
   </div>
 </div>
 
@@ -548,6 +573,8 @@ header{border-bottom:1px solid var(--b1);padding:0 20px;height:54px;display:flex
 </div>
 
 <div class="toast" id="toast"></div>
+
+<footer class="site-footer">Created by Gutterman Industries</footer>
 
 <script>
 // ══════════════════════════════════════════════════════
@@ -862,17 +889,25 @@ function startMode(mode){
   renderLadder(); renderCategoryPick();
 }
 function renderLadder(){
-  const tr=document.getElementById('ladder'); tr.innerHTML='';
-  const mc={easy:'re',medium:'rm',hard:'rh'}[G.mode];
+  const tr=document.getElementById('ladder');
+  tr.innerHTML=`<div class="vlad-rail-l"></div><div class="vlad-rail-r"></div><div class="vlad-rungs" id="vrungs"></div>`;
+  const rc=document.getElementById('vrungs');
   for(let i=0;i<TOTAL;i++){
-    const d=document.createElement('div'); d.className='rung';
-    if(i<G.results.length){ const r=G.results[i]; d.classList.add(r==='correct'?'ok':r==='wrong'?'no':'sk'); }
-    else if(i===G.q) d.classList.add('act',mc);
-    else d.classList.add('emp');
-    tr.appendChild(d);
+    const d=document.createElement('div');
+    const num=i+1;
+    let cls='vrung vemp', lbl='';
+    if(i<G.results.length){
+      const r=G.results[i];
+      if(r==='correct'){cls='vrung vok';lbl='✓';}
+      else{cls='vrung vno';lbl='✗';}
+    } else if(i===G.q){
+      cls='vrung vact'; lbl='← now';
+    }
+    d.className=cls;
+    d.innerHTML=`<span class="vrung-num">${num}</span><span class="vrung-label">${lbl}</span>`;
+    rc.appendChild(d);
   }
-  document.getElementById('ladCtr').innerHTML=`${G.q+1} <span>/ ${TOTAL}</span>`;
-  document.getElementById('gRung').textContent=G.q+1;
+  document.getElementById('gScore').textContent=G.score.toLocaleString();
 }
 function renderCategoryPick(){
   G.answered=false; G.acIdx=-1;
