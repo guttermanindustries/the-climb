@@ -580,7 +580,7 @@ let G = null;
 let lbState = {scope:'global',mode:'easy'};
 let authMode = 'signin';
 
-function newG(m){ return {mode:m,q:0,score:0,results:[],skipsLeft:2,hintsLeft:2,answered:false,acIdx:-1,timerSec:0,timerInt:null,over:false,rungs:[],pickedQ:null,lost:false,lostAtRung:0}; }
+function newG(m){ return {mode:m,q:0,score:0,results:[],skipsLeft:1,hintsLeft:1,answered:false,acIdx:-1,timerSec:0,timerInt:null,over:false,rungs:[],pickedQ:null,lost:false,lostAtRung:0}; }
 function dealRungs(questions){
   const bycat={};
   questions.forEach(q=>{const c=q.category||'General Knowledge';if(!bycat[c])bycat[c]=[];bycat[c].push(q);});
