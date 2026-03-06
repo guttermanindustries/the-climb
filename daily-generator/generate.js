@@ -2,8 +2,9 @@
  * THE CLIMB — Daily Question Generator
  * ----------------------------------------
  * Run this script once per day (e.g. midnight via cron or GitHub Actions).
- * It calls the Claude API to generate 30 questions (10 per difficulty),
- * then stores them in Supabase so all players get the same questions.
+ * It calls the Claude API to generate 39 questions per difficulty (3 per category),
+ * then stores them in Supabase so all players get the same question pool.
+ * Players see 3 random category choices per rung and pick one to answer.
  *
  * Setup: npm install @anthropic-ai/sdk @supabase/supabase-js dotenv
  * Run:   node generate.js
@@ -30,10 +31,13 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 // ── Constants ─────────────────────────────────────────────────────────────────
 const TODAY = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
+// 13 categories × 3 questions each = 39 per mode
 const CATEGORIES = [
-  'Pop Culture', 'Sports', 'Music', 'Movies', 'TV',
-  'History', 'Geography', 'Science', 'Food & Drink', 'Tech & Innovation'
+  'Pro Sports/Players', 'College Sports/Players', 'Music', 'Movies', 'TV',
+  'Geography', 'History', 'Science', 'Brands & Products',
+  'Viral Internet', 'General Knowledge', 'Food & Drink', 'US History'
 ];
+const QS_PER_CATEGORY = 3; // Questions per category per mode
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
@@ -84,11 +88,16 @@ async function generateAllQuestions(modes) {
     return `### ${mode.toUpperCase()} SET\n${desc}`;
   }).join('\n\n');
 
+  const totalPerMode = CATEGORIES.length * QS_PER_CATEGORY; // 39
+
   const prompt = `You are generating daily trivia questions for "The Climb," a daily trivia game.
 Today's date: ${TODAY}
 
-Generate ${modes.length * 10} trivia questions total — 10 questions per difficulty set requested below.
-Each set covers all 10 categories, one question per category, in order.
+HOW THE GAME WORKS: Players see 3 random category choices at each of 10 rungs and pick one to answer.
+So each difficulty needs a POOL of ${totalPerMode} questions (${QS_PER_CATEGORY} per category × ${CATEGORIES.length} categories).
+
+Generate ${modes.length * totalPerMode} trivia questions total — ${totalPerMode} per difficulty set.
+Each set must include EXACTLY ${QS_PER_CATEGORY} questions per category, covering all ${CATEGORIES.length} categories.
 
 Categories (use exactly these names):
 ${CATEGORIES.map((c, i) => `${i + 1}. ${c}`).join('\n')}
@@ -101,34 +110,36 @@ CRITICAL ACCURACY RULES (strictly enforce):
 ═══════════════════════════════════════════
 1. FACTUAL CERTAINTY: Only write questions you are 100% certain are correct. If there is any doubt about a fact — especially sports championships, election results, award winners, or records from 2023 onward — do NOT use it. Stick to well-established facts.
 2. NO ANSWER IN QUESTION: The answer word or phrase must NEVER appear anywhere in the question text. Read back every question to verify this before including it.
-3. NO OVERLAP: Each of the ${modes.length} difficulty sets must cover entirely different topics, people, events, and facts — even within the same category. Do not reuse any person, team, movie, show, song, or event across sets.
-4. HINTS MUST NOT REVEAL THE ANSWER: The hint should give useful context that narrows down the answer for someone who almost knows it — but must not contain the answer or any part of it. Good hints reference related facts, time period, genre, or context. Bad hints spell out the answer or give away the first letter.
-5. SHORT ANSWERS: Answers must be a name, word, number, or very short phrase — never a full sentence.
-6. ANSWER VARIANTS: In autocomplete, include natural alternate phrasings a player might type (e.g. if answer is "The Beatles", include "Beatles").
+3. NO OVERLAP: Each difficulty set must use entirely different topics, people, events, and facts — even within the same category. Do not reuse any person, team, movie, show, song, or event across difficulty sets.
+4. VARIETY WITHIN CATEGORY: The ${QS_PER_CATEGORY} questions within each category in a set must cover different sub-topics (e.g. for Music: not 3 questions about the same artist).
+5. HINTS MUST NOT REVEAL THE ANSWER: The hint should give useful context that narrows down the answer — but must not contain the answer or any part of it. Good hints reference related facts, time period, genre, or context.
+6. SHORT ANSWERS: Answers must be a name, word, number, or very short phrase — never a full sentence.
+7. ANSWER VARIANTS: In autocomplete, include natural alternate phrasings a player might type.
 
 ═══════════════════════════════════════════
 OUTPUT FORMAT
 ═══════════════════════════════════════════
-Return ONLY a raw JSON object with mode keys. No markdown, no explanation, no code fences:
+Return ONLY a raw JSON object with mode keys. No markdown, no explanation, no code fences.
+Each mode's array must have exactly ${totalPerMode} question objects (${QS_PER_CATEGORY} per category, all ${CATEGORIES.length} categories represented):
 {
   "easy": [
     {
       "question": "Question text here?",
       "answer": "Exact short answer",
-      "hint": "A useful contextual clue that does not reveal the answer or any part of it",
-      "category": "Category name from the list",
+      "hint": "A useful contextual clue that does not reveal the answer",
+      "category": "Category name from the list above",
       "autocomplete": ["correct answer", "alternate phrasing", "plausible wrong answer 1", "plausible wrong answer 2"]
     }
   ],
-  "medium": [ ... 10 questions ... ],
-  "hard": [ ... 10 questions ... ]
+  "medium": [ ... ${totalPerMode} questions ... ],
+  "hard": [ ... ${totalPerMode} questions ... ]
 }
 
 Only include keys for the difficulty sets requested: ${modes.join(', ')}.`;
 
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-5-20250929',  // Sonnet: better accuracy for trivia facts
-    max_tokens: 8000,
+    max_tokens: 16000,  // 39 questions × 3 modes needs more tokens
     messages: [{ role: 'user', content: prompt }]
   });
 
@@ -136,11 +147,13 @@ Only include keys for the difficulty sets requested: ${modes.join(', ')}.`;
   const clean = text.replace(/```json|```/g, '').trim();
   const parsed = JSON.parse(clean);
 
+  const expectedCount = CATEGORIES.length * QS_PER_CATEGORY; // 39
+
   // Validate each mode
   for (const mode of modes) {
     const qs = parsed[mode];
-    if (!Array.isArray(qs) || qs.length !== 10) {
-      throw new Error(`Expected 10 ${mode} questions, got ${qs?.length}`);
+    if (!Array.isArray(qs) || qs.length !== expectedCount) {
+      throw new Error(`Expected ${expectedCount} ${mode} questions, got ${qs?.length}`);
     }
     qs.forEach((q, i) => {
       if (!q.question || !q.answer || !q.hint || !q.autocomplete) {
