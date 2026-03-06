@@ -35,14 +35,6 @@ const CATEGORIES = [
   'History', 'Geography', 'Science', 'Food & Drink', 'Tech & Innovation'
 ];
 
-const MODES = ['easy', 'medium', 'hard'];
-
-const DIFFICULTY_DESC = {
-  easy:   'accessible — most adults will know this. Focus on mainstream pop culture, famous people, basic history, major sports.',
-  medium: 'moderate — about 50% of people will know this. Mix of well-known and slightly obscure facts.',
-  hard:   'challenging — only trivia enthusiasts will know. Specific records, years, niche facts, deeper cuts.'
-};
-
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   console.log(`\n🎯 The Climb Daily Generator — ${TODAY}\n`);
@@ -54,85 +46,113 @@ async function main() {
     .eq('date', TODAY);
 
   const existingModes = (existing || []).map(r => r.mode);
-  const modesToGenerate = MODES.filter(m => !existingModes.includes(m));
+  const modesNeeded = ['easy', 'medium', 'hard'].filter(m => !existingModes.includes(m));
 
-  if (modesToGenerate.length === 0) {
+  if (modesNeeded.length === 0) {
     console.log('✅ Today\'s questions already generated. Nothing to do.');
     return;
   }
 
-  console.log(`📝 Generating questions for: ${modesToGenerate.join(', ')}\n`);
+  console.log(`📝 Generating questions for: ${modesNeeded.join(', ')}\n`);
+  console.log('  ⏳ Generating all questions in one pass (prevents overlap)...');
 
-  for (const mode of modesToGenerate) {
-    try {
-      console.log(`  ⏳ Generating ${mode} questions...`);
-      const questions = await generateQuestions(mode);
-      await storeQuestions(mode, questions);
-      console.log(`  ✅ ${mode}: ${questions.length} questions stored\n`);
-    } catch (err) {
-      console.error(`  ❌ Failed to generate ${mode}:`, err.message);
-      process.exit(1);
+  try {
+    const allQuestions = await generateAllQuestions(modesNeeded);
+
+    for (const mode of modesNeeded) {
+      if (allQuestions[mode]) {
+        await storeQuestions(mode, allQuestions[mode]);
+        console.log(`  ✅ ${mode}: ${allQuestions[mode].length} questions stored`);
+      }
     }
+  } catch (err) {
+    console.error('  ❌ Generation failed:', err.message);
+    process.exit(1);
   }
 
-  console.log('🏆 All done! Today\'s questions are ready.\n');
+  console.log('\n🏆 All done! Today\'s questions are ready.\n');
 }
 
-// ── Generate 10 questions for a mode ──────────────────────────────────────────
-async function generateQuestions(mode) {
-  const prompt = `Generate exactly 10 trivia questions for a daily trivia game.
+// ── Generate all questions in one call to prevent topic overlap ───────────────
+async function generateAllQuestions(modes) {
+  const modesSection = modes.map(mode => {
+    const desc = {
+      easy:   'EASY — questions a typical adult can answer. Think: iconic movies, famous athletes, basic history, household brand names. Should feel achievable.',
+      medium: 'MEDIUM — requires real knowledge. About half of players will know. Mix popular and slightly deeper facts. MUST use completely different topics/people/events than the easy questions.',
+      hard:   'HARD — only trivia enthusiasts will know. Specific records, exact years, niche facts, deep cuts. MUST use completely different topics/people/events than easy and medium.'
+    }[mode];
+    return `### ${mode.toUpperCase()} SET\n${desc}`;
+  }).join('\n\n');
 
-Difficulty: ${mode} (${DIFFICULTY_DESC[mode]})
-Date: ${TODAY}
+  const prompt = `You are generating daily trivia questions for "The Climb," a daily trivia game.
+Today's date: ${TODAY}
 
-Categories — one question per category, in this order:
+Generate ${modes.length * 10} trivia questions total — 10 questions per difficulty set requested below.
+Each set covers all 10 categories, one question per category, in order.
+
+Categories (use exactly these names):
 ${CATEGORIES.map((c, i) => `${i + 1}. ${c}`).join('\n')}
 
-Return ONLY a raw JSON array of exactly 10 objects. No markdown, no explanation:
-[
-  {
-    "question": "The question text",
-    "answer": "Short exact answer (name, word, or brief phrase — never a full sentence)",
-    "hint": "A helpful clue that doesn't give it away",
-    "category": "Category name from the list above",
-    "autocomplete": ["correct answer", "alternate spelling or variant", "plausible wrong answer", "plausible wrong answer", "related term"]
-  }
-]
+Difficulty sets needed:
+${modesSection}
 
-Important rules:
-- autocomplete[0] MUST be the correct answer
-- Answers must be specific names, places, or short phrases
-- No yes/no questions
-- Vary question styles: who, what, where, when, which
-- Make questions genuinely interesting and fun
-- ${mode === 'hard' ? 'For hard: go deep — specific stats, years, niche figures, record holders.' : ''}
-- ${mode === 'easy' ? 'For easy: think Wordle-level accessibility. Should feel winnable.' : ''}`;
+═══════════════════════════════════════════
+CRITICAL ACCURACY RULES (strictly enforce):
+═══════════════════════════════════════════
+1. FACTUAL CERTAINTY: Only write questions you are 100% certain are correct. If there is any doubt about a fact — especially sports championships, election results, award winners, or records from 2023 onward — do NOT use it. Stick to well-established facts.
+2. NO ANSWER IN QUESTION: The answer word or phrase must NEVER appear anywhere in the question text. Read back every question to verify this before including it.
+3. NO OVERLAP: Each of the ${modes.length} difficulty sets must cover entirely different topics, people, events, and facts — even within the same category. Do not reuse any person, team, movie, show, song, or event across sets.
+4. HINTS MUST NOT REVEAL THE ANSWER: The hint should give useful context that narrows down the answer for someone who almost knows it — but must not contain the answer or any part of it. Good hints reference related facts, time period, genre, or context. Bad hints spell out the answer or give away the first letter.
+5. SHORT ANSWERS: Answers must be a name, word, number, or very short phrase — never a full sentence.
+6. ANSWER VARIANTS: In autocomplete, include natural alternate phrasings a player might type (e.g. if answer is "The Beatles", include "Beatles").
+
+═══════════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════════
+Return ONLY a raw JSON object with mode keys. No markdown, no explanation, no code fences:
+{
+  "easy": [
+    {
+      "question": "Question text here?",
+      "answer": "Exact short answer",
+      "hint": "A useful contextual clue that does not reveal the answer or any part of it",
+      "category": "Category name from the list",
+      "autocomplete": ["correct answer", "alternate phrasing", "plausible wrong answer 1", "plausible wrong answer 2"]
+    }
+  ],
+  "medium": [ ... 10 questions ... ],
+  "hard": [ ... 10 questions ... ]
+}
+
+Only include keys for the difficulty sets requested: ${modes.join(', ')}.`;
 
   const message = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',  // Haiku: fast, cheap, great for trivia
-    max_tokens: 4000,
+    model: 'claude-sonnet-4-5-20250929',  // Sonnet: better accuracy for trivia facts
+    max_tokens: 8000,
     messages: [{ role: 'user', content: prompt }]
   });
 
   const text = message.content.map(c => c.text || '').join('');
   const clean = text.replace(/```json|```/g, '').trim();
-  const questions = JSON.parse(clean);
+  const parsed = JSON.parse(clean);
 
-  if (!Array.isArray(questions) || questions.length !== 10) {
-    throw new Error(`Expected 10 questions, got ${questions?.length}`);
+  // Validate each mode
+  for (const mode of modes) {
+    const qs = parsed[mode];
+    if (!Array.isArray(qs) || qs.length !== 10) {
+      throw new Error(`Expected 10 ${mode} questions, got ${qs?.length}`);
+    }
+    qs.forEach((q, i) => {
+      if (!q.question || !q.answer || !q.hint || !q.autocomplete) {
+        throw new Error(`${mode} question ${i + 1} missing required fields`);
+      }
+      if (!Array.isArray(q.autocomplete) || q.autocomplete.length < 3) {
+        throw new Error(`${mode} question ${i + 1} has insufficient autocomplete options`);
+      }
+    });
   }
 
-  // Validate each question
-  questions.forEach((q, i) => {
-    if (!q.question || !q.answer || !q.hint || !q.autocomplete) {
-      throw new Error(`Question ${i + 1} is missing required fields`);
-    }
-    if (!Array.isArray(q.autocomplete) || q.autocomplete.length < 3) {
-      throw new Error(`Question ${i + 1} has insufficient autocomplete options`);
-    }
-  });
-
-  return questions;
+  return parsed;
 }
 
 // ── Store in Supabase ─────────────────────────────────────────────────────────
