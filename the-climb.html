@@ -194,6 +194,13 @@ header{border-bottom:1px solid var(--b1);padding:0 20px;height:54px;display:flex
 .cd.p3{background:var(--easy);}
 .cd.tod{outline:2px solid var(--gold);outline-offset:1px;}
 
+/* ── CATEGORY PICKER ── */
+.cp-label{font-family:'Instrument Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--tm);margin-bottom:10px;}
+.cp-cards{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+.cp-card{width:100%;padding:15px 18px;border:1.5px solid var(--b2);border-radius:var(--rl);background:var(--s1);cursor:pointer;display:flex;align-items:center;gap:13px;font-family:'Instrument Sans',sans-serif;text-align:left;transition:all 0.18s;}
+.cp-card:hover{border-color:var(--b3);background:var(--s2);transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,0.08);}
+.cp-em{font-size:24px;flex-shrink:0;}
+.cp-name{font-size:15px;font-weight:600;color:var(--tx);}
 /* ── GAME ── */
 #pgGame{max-width:640px;width:100%;margin:0 auto;padding:20px 18px 80px;flex:1;}
 .gtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding:10px 14px;background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);}
@@ -465,21 +472,29 @@ header{border-bottom:1px solid var(--b1);padding:0 20px;height:54px;display:flex
       <button class="llc" id="llHint" onclick="useHint()">💡 Hint</button>
     </div>
   </div>
-  <div class="catrow"><div class="ctag" id="catTag">—</div><div class="ptag" id="ptag">+100</div></div>
-  <div class="qcard">
-    <div class="qs" id="qstripe"></div>
-    <div id="qskel"><div class="sk sk1"></div><div class="sk sk2"></div></div>
-    <div class="qt" id="qtext" style="display:none;"></div>
-    <div class="hb" id="hintbox"></div>
+  <!-- Category picker (shown before each question) -->
+  <div id="catPick" style="display:none;">
+    <div class="cp-label">Choose your category</div>
+    <div class="cp-cards" id="cpCards"></div>
   </div>
-  <div class="fb" id="fb"><span id="fbi"></span><span id="fbm"></span></div>
-  <div class="aw"><input class="ai" id="ansInp" type="text" placeholder="Type your answer…" autocomplete="off" spellcheck="false"/><div class="adrop" id="adrop"></div></div>
-  <div class="arow">
-    <button class="btn bg2" id="bSkip" onclick="useSkip()">🔀 Skip</button>
-    <button class="btn bg2" id="bHint" onclick="useHint()">💡 Hint</button>
-    <button class="btn bp"  id="bSub"  onclick="submit()" disabled>Submit →</button>
+  <!-- Question area (shown after picking a category) -->
+  <div id="qarea" style="display:none;">
+    <div class="catrow"><div class="ctag" id="catTag">—</div><div class="ptag" id="ptag">+100</div></div>
+    <div class="qcard">
+      <div class="qs" id="qstripe"></div>
+      <div id="qskel"><div class="sk sk1"></div><div class="sk sk2"></div></div>
+      <div class="qt" id="qtext" style="display:none;"></div>
+      <div class="hb" id="hintbox"></div>
+    </div>
+    <div class="fb" id="fb"><span id="fbi"></span><span id="fbm"></span></div>
+    <div class="aw"><input class="ai" id="ansInp" type="text" placeholder="Type your answer…" autocomplete="off" spellcheck="false"/><div class="adrop" id="adrop"></div></div>
+    <div class="arow">
+      <button class="btn bg2" id="bSkip" onclick="useSkip()">🔀 Skip</button>
+      <button class="btn bg2" id="bHint" onclick="useHint()">💡 Hint</button>
+      <button class="btn bp"  id="bSub"  onclick="submit()" disabled>Submit →</button>
+    </div>
+    <button class="bnext" id="bnext" onclick="nextQ()">Continue →</button>
   </div>
-  <button class="bnext" id="bnext" onclick="nextQ()">Continue →</button>
 </div>
 
 <!-- RESULT OVERLAY -->
@@ -532,11 +547,12 @@ const SUPABASE_KEY = 'sb_publishable_mympp2mYbDdi1ckJkblbkg_ezLFYx45';
 // ══════════════════════════════════════════════════════
 const TOTAL = 10;
 const TODAY = new Date().toISOString().slice(0,10);
-const CATS  = ['Pop Culture','Sports','Music','Movies','TV','History','Geography','Science','Food & Drink','Tech & Innovation'];
+const CATS  = ['Pro Sports/Players','College Sports/Players','Music','Movies','TV','Geography','History','Science','Brands & Products','Viral Internet','General Knowledge','Food & Drink','US History'];
+const CAT_EMOJIS = {'Pro Sports/Players':'🏆','College Sports/Players':'🎓','Music':'🎵','Movies':'🎬','TV':'📺','Geography':'🌍','History':'📜','Science':'🔬','Brands & Products':'🛍️','Viral Internet':'📱','General Knowledge':'🧠','Food & Drink':'🍕','US History':'🇺🇸'};
 const MCFG  = {
-  easy:   {label:'Easy',  color:'#3EE07A',pip:'pe',mc:'te',ptc:'pte',stripe:'se',ai:'aie',pts:100},
-  medium: {label:'Medium',color:'#F6CB3A',pip:'pm',mc:'tm2',ptc:'ptm',stripe:'sm',ai:'aim',pts:175},
-  hard:   {label:'Hard',  color:'#F06565',pip:'ph2',mc:'th',ptc:'pth',stripe:'sh',ai:'aih',pts:275},
+  easy:   {label:'Easy',  color:'#15803D',pip:'pe',mc:'te',ptc:'pte',stripe:'se',ai:'aie',pts:100},
+  medium: {label:'Medium',color:'#B45309',pip:'pm',mc:'tm2',ptc:'ptm',stripe:'sm',ai:'aim',pts:175},
+  hard:   {label:'Hard',  color:'#B91C1C',pip:'ph2',mc:'th',ptc:'pth',stripe:'sh',ai:'aih',pts:275},
 };
 
 // ══════════════════════════════════════════════════════
@@ -550,7 +566,22 @@ let G = null;
 let lbState = {scope:'global',mode:'easy'};
 let authMode = 'signin';
 
-function newG(m){ return {mode:m,q:0,score:0,results:[],skipUsed:false,hintUsed:false,answered:false,acIdx:-1,timerSec:0,timerInt:null,over:false}; }
+function newG(m){ return {mode:m,q:0,score:0,results:[],skipUsed:false,hintUsed:false,answered:false,acIdx:-1,timerSec:0,timerInt:null,over:false,rungs:[],pickedQ:null}; }
+function dealRungs(questions){
+  const bycat={};
+  questions.forEach(q=>{const c=q.category||'General Knowledge';if(!bycat[c])bycat[c]=[];bycat[c].push(q);});
+  Object.values(bycat).forEach(arr=>arr.sort(()=>Math.random()-0.5));
+  const cats=Object.keys(bycat).sort(()=>Math.random()-0.5);
+  const used={};cats.forEach(c=>used[c]=0);
+  let pool=[];for(let i=0;i<4;i++)pool=pool.concat([...cats].sort(()=>Math.random()-0.5));
+  const rungs=[];let pi=0;
+  for(let r=0;r<TOTAL;r++){
+    const rc=[];let att=0;
+    while(rc.length<3&&att<pool.length){const cat=pool[pi%pool.length];pi++;att++;if(!rc.includes(cat)&&bycat[cat]&&used[cat]<bycat[cat].length)rc.push(cat);}
+    rungs.push(rc.map(cat=>{const q=bycat[cat][used[cat]];used[cat]++;return{category:cat,q};}));
+  }
+  return rungs;
+}
 
 // ══════════════════════════════════════════════════════
 // PERSISTENCE
@@ -805,13 +836,8 @@ function startMode(mode){
   document.getElementById('qstripe').className='qs '+cfg.stripe;
   document.getElementById('ptag').className='ptag '+cfg.ptc;
   document.getElementById('ptag').textContent='+'+cfg.pts+' pts';
-  G.timerInt=setInterval(()=>{
-    G.timerSec++;
-    const td=document.getElementById('gtimer');
-    td.textContent=fmt(G.timerSec);
-    td.className='gtimer'+(G.timerSec>=300?' tw':'');
-  },1000);
-  renderLadder(); renderQ();
+  G.rungs=dealRungs(dailyQs[mode]);
+  renderLadder(); renderCategoryPick();
 }
 function renderLadder(){
   const tr=document.getElementById('ladder'); tr.innerHTML='';
@@ -826,6 +852,31 @@ function renderLadder(){
   document.getElementById('ladCtr').innerHTML=`${G.q+1} <span>/ ${TOTAL}</span>`;
   document.getElementById('gRung').textContent=G.q+1;
 }
+function renderCategoryPick(){
+  G.answered=false; G.acIdx=-1;
+  document.getElementById('catPick').style.display='block';
+  document.getElementById('qarea').style.display='none';
+  document.getElementById('fb').className='fb';
+  document.getElementById('bnext').className='bnext';
+  syncLL(true);
+  const opts=G.rungs[G.q]||[];
+  const cards=document.getElementById('cpCards'); cards.innerHTML='';
+  opts.forEach((opt,idx)=>{
+    const em=CAT_EMOJIS[opt.category]||'❓';
+    const btn=document.createElement('button');
+    btn.className='cp-card'; btn.innerHTML=`<span class="cp-em">${em}</span><span class="cp-name">${opt.category}</span>`;
+    btn.onclick=()=>pickCategory(idx); cards.appendChild(btn);
+  });
+}
+function pickCategory(idx){
+  const opt=G.rungs[G.q][idx]; G.pickedQ=opt.q;
+  document.getElementById('catPick').style.display='none';
+  document.getElementById('qarea').style.display='block';
+  if(!G.timerInt){
+    G.timerInt=setInterval(()=>{G.timerSec++;const td=document.getElementById('gtimer');td.textContent=fmt(G.timerSec);td.className='gtimer'+(G.timerSec>=300?' tw':'');},1000);
+  }
+  renderQ();
+}
 function renderQ(){
   G.answered=false; G.acIdx=-1; closeAuto();
   const ai=document.getElementById('ansInp'); ai.value=''; ai.disabled=false;
@@ -836,7 +887,7 @@ function renderQ(){
   document.getElementById('qskel').style.display='block';
   document.getElementById('qtext').style.display='none';
   syncLL();
-  const q=dailyQs[G.mode][G.q];
+  const q=G.pickedQ;
   document.getElementById('catTag').textContent=q?.category||CATS[G.q%CATS.length];
   setTimeout(()=>{ document.getElementById('qskel').style.display='none'; document.getElementById('qtext').style.display='block'; document.getElementById('qtext').textContent=q?.question||'…'; },150);
 }
@@ -868,7 +919,7 @@ function submit(){
   if(G.answered||G.over) return;
   const val=document.getElementById('ansInp').value.trim();
   if(!val) return;
-  const q=dailyQs[G.mode][G.q];
+  const q=G.pickedQ;
   const NW={zero:'0',one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10',eleven:'11',twelve:'12',thirteen:'13',fourteen:'14',fifteen:'15',sixteen:'16',seventeen:'17',eighteen:'18',nineteen:'19',twenty:'20',thirty:'30',forty:'40',fifty:'50',sixty:'60',seventy:'70',eighty:'80',ninety:'90',hundred:'100'};
   const numNorm=s=>s.replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)\b/gi,m=>NW[m.toLowerCase()]||m);
   const n=s=>{let r=s.toLowerCase().replace(/^(the|a|an)\s+/i,''); r=numNorm(r); return r.replace(/[^a-z0-9]/g,'').trim();};
@@ -900,7 +951,7 @@ function showFb(result,ans,pts){
 function useSkip(){
   if(G.skipUsed||G.answered||G.over) return;
   G.skipUsed=true; syncLL();
-  const q=dailyQs[G.mode][G.q];
+  const q=G.pickedQ;
   G.answered=true; G.results.push('skip');
   document.getElementById('ansInp').disabled=true; document.getElementById('bSub').disabled=true; closeAuto();
   const cat=q?.category||'General';
@@ -914,7 +965,7 @@ function useSkip(){
 function useHint(){
   if(G.hintUsed||G.answered||G.over) return;
   G.hintUsed=true; syncLL();
-  const q=dailyQs[G.mode][G.q];
+  const q=G.pickedQ;
   const ans=q?.answer||'';
   const letterCount=ans.replace(/\s/g,'').length;
   const hintText=q?.hint||'No hint available.';
@@ -927,7 +978,7 @@ function syncLL(off){
   ['llSkip','bSkip'].forEach(id=>document.getElementById(id).disabled=so);
   ['llHint','bHint'].forEach(id=>document.getElementById(id).disabled=ho);
 }
-function nextQ(){ G.q++; if(G.q>=TOTAL){endGame(true);return;} renderLadder(); renderQ(); }
+function nextQ(){ G.q++; if(G.q>=TOTAL){endGame(true);return;} renderLadder(); renderCategoryPick(); }
 function stopTimer(){ if(G?.timerInt){clearInterval(G.timerInt);G.timerInt=null;} }
 function confirmExit(){ if(G&&!G.over){if(confirm('Exit? Progress will be lost.'))stopTimer(),showPage('home');}else showPage('home'); }
 
