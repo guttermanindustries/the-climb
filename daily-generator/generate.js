@@ -115,6 +115,7 @@ CRITICAL ACCURACY RULES (strictly enforce):
 5. HINTS MUST NOT REVEAL THE ANSWER: The hint should give useful context that narrows down the answer — but must not contain the answer or any part of it. Good hints reference related facts, time period, genre, or context.
 6. SHORT ANSWERS: Answers must be a name, word, number, or very short phrase — never a full sentence.
 7. ANSWER VARIANTS: In autocomplete, include natural alternate phrasings a player might type.
+8. NO YEAR ANSWERS: Never write a question where the answer is a year (e.g. "1969", "2003"). Questions asking "what year did X happen?" are forbidden. Focus on names, places, people, things, and titles instead.
 
 ═══════════════════════════════════════════
 OUTPUT FORMAT
