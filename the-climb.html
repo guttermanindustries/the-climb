@@ -999,7 +999,7 @@ function useSkip(){
   if(G.skipsLeft<=0||G.answered||G.over) return;
   G.skipsLeft--; syncLL();
   const q=G.pickedQ;
-  G.answered=true; G.results.push('skip');
+  G.answered=true; G.results.push('correct');
   document.getElementById('ansInp').disabled=true; document.getElementById('bSub').disabled=true; closeAuto();
   const cat=q?.category||'General';
   if(!profile.catStats[cat]) profile.catStats[cat]={correct:0,total:0};
