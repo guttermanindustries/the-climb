@@ -572,13 +572,21 @@ function dealRungs(questions){
   questions.forEach(q=>{const c=q.category||'General Knowledge';if(!bycat[c])bycat[c]=[];bycat[c].push(q);});
   Object.values(bycat).forEach(arr=>arr.sort(()=>Math.random()-0.5));
   const cats=Object.keys(bycat).sort(()=>Math.random()-0.5);
+  // Track usage per category; reset (allow reuse) if pool runs low
   const used={};cats.forEach(c=>used[c]=0);
-  let pool=[];for(let i=0;i<4;i++)pool=pool.concat([...cats].sort(()=>Math.random()-0.5));
+  const getQ=(cat)=>{
+    if(used[cat]>=bycat[cat].length) used[cat]=0; // wrap around if needed
+    return bycat[cat][used[cat]++];
+  };
+  let pool=[];for(let i=0;i<5;i++)pool=pool.concat([...cats].sort(()=>Math.random()-0.5));
   const rungs=[];let pi=0;
   for(let r=0;r<TOTAL;r++){
     const rc=[];let att=0;
-    while(rc.length<3&&att<pool.length){const cat=pool[pi%pool.length];pi++;att++;if(!rc.includes(cat)&&bycat[cat]&&used[cat]<bycat[cat].length)rc.push(cat);}
-    rungs.push(rc.map(cat=>{const q=bycat[cat][used[cat]];used[cat]++;return{category:cat,q};}));
+    // First pass: try to get 3 unique categories
+    while(rc.length<3&&att<pool.length*2){const cat=pool[pi%pool.length];pi++;att++;if(!rc.includes(cat))rc.push(cat);}
+    // Fallback: if fewer than 3 unique cats available, repeat
+    while(rc.length<3){rc.push(cats[rc.length%cats.length]||cats[0]);}
+    rungs.push(rc.map(cat=>({category:cat,q:getQ(cat)})));
   }
   return rungs;
 }
@@ -895,7 +903,7 @@ function onType(e){
   const val=e.target.value.trim();
   document.getElementById('bSub').disabled=val.length<1;
   if(!val){closeAuto();return;}
-  const q=dailyQs[G.mode]?.[G.q];
+  const q=G.pickedQ;
   const hits=(q?.autocomplete||[]).filter(o=>o.toLowerCase().startsWith(val.toLowerCase())).slice(0,5);
   if(!hits.length){closeAuto();return;}
   const drop=document.getElementById('adrop'); drop.innerHTML=''; G.acIdx=-1;
