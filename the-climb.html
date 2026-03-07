@@ -287,6 +287,57 @@ header{border-bottom:1px solid var(--b1);padding:0 20px;height:54px;display:flex
 .bnext:hover{opacity:0.85;}
 .bnext.on{display:block;}
 
+/* ── DARK GAME THEME ── */
+#pgGame{background:#0F0F0F;}
+#pgGame .gtop{background:#1A1A1A;border-color:#2A2A2A;}
+#pgGame .gmode{color:#aaa;}
+#pgGame .gtimer{color:#F59E0B;}
+#pgGame .gtimer.tw{color:#EF4444;}
+#pgGame .gexit{color:#555;border-color:#2A2A2A;}
+#pgGame .gexit:hover{color:#aaa;border-color:#444;}
+#pgGame .vlad-lbl{color:#555;}
+#pgGame .vlad-rail-l,#pgGame .vlad-rail-r{background:linear-gradient(180deg,#2A2A2A,#1E1E1E);}
+#pgGame .vrung.vok{background:rgba(21,128,61,0.75);color:#4ADE80;box-shadow:0 0 10px rgba(21,128,61,0.4);}
+#pgGame .vrung.vno{background:rgba(185,28,28,0.75);color:#FCA5A5;box-shadow:0 0 10px rgba(185,28,28,0.4);}
+#pgGame .vrung.vact{background:linear-gradient(90deg,#92400E,#B45309);color:#FDE68A;box-shadow:0 0 16px rgba(245,158,11,0.45);}
+#pgGame .vrung.vemp{background:#1A1A1A;border-color:#252525;color:#333;}
+#pgGame .sb{background:#1A1A1A;border-color:#2A2A2A;}
+#pgGame .sb-l{color:#555;}
+#pgGame .sb-v{color:#F5F0E8;}
+#pgGame .sb-v.gv{color:#F59E0B;}
+#pgGame .llbox{background:#1A1A1A;border-color:#2A2A2A;}
+#pgGame .llc{background:#222;border-color:#333;color:#888;}
+#pgGame .llc:hover:not(:disabled){background:#2A2A2A;border-color:#444;color:#aaa;}
+#pgGame .llc:disabled{opacity:0.2;}
+#pgGame .ctag{background:rgba(245,158,11,0.1);border-color:rgba(245,158,11,0.25);color:#F59E0B;}
+#pgGame .ptag{color:#F59E0B;}
+#pgGame .qcard{background:#1A1A1A;border-color:#2A2A2A;}
+#pgGame .qt{color:#F5F0E8;}
+#pgGame .sk1,.sk2{background:#2A2A2A;}
+#pgGame .hb{background:rgba(245,158,11,0.08);border-color:rgba(245,158,11,0.2);color:#F59E0B;}
+#pgGame .ai{background:#222;border-color:#333;color:#F5F0E8;}
+#pgGame .ai::placeholder{color:#444;}
+#pgGame .aie:focus{border-color:#4ADE80;box-shadow:0 0 0 3px rgba(74,222,128,0.08);}
+#pgGame .aim:focus{border-color:#F59E0B;box-shadow:0 0 0 3px rgba(245,158,11,0.08);}
+#pgGame .aih:focus{border-color:#EF4444;box-shadow:0 0 0 3px rgba(239,68,68,0.08);}
+#pgGame .adrop{background:#222;border-color:#333;box-shadow:0 8px 28px rgba(0,0,0,0.4);}
+#pgGame .ai-item{border-color:#2A2A2A;color:#D4CFC8;}
+#pgGame .ai-item:hover,#pgGame .ai-item.hl{background:#2A2A2A;}
+#pgGame .ai-item mark{color:#F5F0E8;}
+#pgGame .fb-ok{background:rgba(74,222,128,0.07);border-color:rgba(74,222,128,0.2);color:#4ADE80;}
+#pgGame .fb-no{background:rgba(239,68,68,0.07);border-color:rgba(239,68,68,0.2);color:#FCA5A5;}
+#pgGame .fb-sk{background:rgba(245,158,11,0.07);border-color:rgba(245,158,11,0.2);color:#FDE68A;}
+#pgGame .bg2{border-color:#2A2A2A;color:#555;}
+#pgGame .bg2:hover:not(:disabled){border-color:#444;color:#888;}
+#pgGame .bg2:disabled{opacity:0.2;}
+#pgGame .bp{background:linear-gradient(135deg,#15803D,#166534);border-color:transparent;box-shadow:0 0 18px rgba(21,128,61,0.3);}
+#pgGame .bp:hover:not(:disabled){box-shadow:0 0 24px rgba(21,128,61,0.45);opacity:1;}
+#pgGame .bnext{background:linear-gradient(135deg,#15803D,#166534);box-shadow:0 0 18px rgba(21,128,61,0.3);}
+#pgGame .cp-card{background:#1A1A1A;border-color:#2A2A2A;}
+#pgGame .cp-card:hover{background:#222;border-color:#444;box-shadow:0 4px 16px rgba(0,0,0,0.3);}
+#pgGame .cp-name{color:#F5F0E8;}
+#pgGame .cp-label{color:#555;}
+
 /* ── RESULT OVERLAY ── */
 .ov{position:fixed;inset:0;background:rgba(9,9,11,0.93);backdrop-filter:blur(22px);display:none;align-items:center;justify-content:center;z-index:500;padding:18px;}
 .ov.on{display:flex;}
@@ -959,8 +1010,10 @@ function onType(e){
   const allOpts=q?.autocomplete||[];
   if(!allOpts.length){closeAuto();return;}
   const drop=document.getElementById('adrop'); drop.innerHTML=''; G.acIdx=-1;
+  // Shuffle options so correct answer is not always first — prevents positional guessing
+  const shuffled=[...allOpts].sort(()=>Math.random()-0.5);
   // Always show ALL options unfiltered — prevents brute-forcing by typing
-  allOpts.slice(0,6).forEach(h=>{
+  shuffled.slice(0,6).forEach(h=>{
     const el=document.createElement('div'); el.className='ai-item';
     // Highlight match only if option starts with typed text
     if(h.toLowerCase().startsWith(val.toLowerCase())){
