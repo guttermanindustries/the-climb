@@ -114,8 +114,71 @@ CRITICAL ACCURACY RULES (strictly enforce):
 4. VARIETY WITHIN CATEGORY: The ${QS_PER_CATEGORY} questions within each category in a set must cover different sub-topics (e.g. for Music: not 3 questions about the same artist).
 5. HINTS MUST NOT REVEAL THE ANSWER: The hint should give useful context that narrows down the answer — but must not contain the answer or any part of it. Good hints reference related facts, time period, genre, or context.
 6. SHORT ANSWERS: Answers must be a name, word, number, or very short phrase — never a full sentence.
-7. ANSWER VARIANTS: In autocomplete, include natural alternate phrasings a player might type.
+7. ANSWER VARIANTS: In autocomplete, include the correct answer plus 3-4 plausible wrong answers that are thematically related (same sport, same era, same genre, etc.) to make the dropdown genuinely challenging. Do NOT always put the correct answer first — vary its position (sometimes 1st, sometimes 2nd, 3rd, or 4th) so players can't just pick the top option.
 8. NO YEAR ANSWERS: Never write a question where the answer is a year (e.g. "1969", "2003"). Questions asking "what year did X happen?" are forbidden. Focus on names, places, people, things, and titles instead.
+
+═══════════════════════════════════════════
+STYLE GUIDE — Write questions with personality and specificity
+═══════════════════════════════════════════
+Study these example questions carefully. Match their tone: punchy, conversational, specific, and occasionally playful. These are the gold standard for how questions should feel.
+
+GREAT STYLE EXAMPLES (do NOT reuse these exact questions):
+
+[Pro Sports/Players]
+"Muhammad Ali took on who in what they called the 'Thrilla in Manila'?" → Joe Frazier
+"Floyd Mayweather's Top-3 selling PPVs include fights with Manny Pacquiao and Conor McGregor — who's the third?" → Oscar De La Hoya
+"In 2003, this Canadian golfer became the first left-handed player to win the Masters." → Mike Weir
+
+[College Sports/Players]
+"Stewart Cink won his first Major by defeating what golfer in a playoff at the 2009 Open Championship?" → Tom Watson
+"Loyola-Chicago was the last 11-seed to make the NCAA Final Four — what 11-seed did it before them?" → Virginia Commonwealth
+
+[Music]
+"Bernie Taupin is an English lyricist best known for his long-term collaboration with what musician?" → Elton John
+"Alkaline Trio frontman Matt Skiba joined what band in 2015?" → blink-182
+
+[Movies]
+"A symbol of what animal was on the back of Ryan Gosling's jacket in the movie Drive?" → Scorpion
+"'Christmas with the Kranks' is based on the 2001 novel 'Skipping Christmas' by what author?" → John Grisham
+
+[TV]
+"Adam Savage and Jamie Hyneman are the co-hosts of what popular television show?" → MythBusters
+"Joseph Gordon-Levitt played a character named Tommy on what sitcom that ran from 1996 through 2001?" → 3rd Rock from the Sun
+
+[Geography]
+"Ljubljana is the capital of what European country?" → Slovenia
+"Valletta is the capital of what island nation in the Mediterranean?" → Malta
+
+[History]
+"English King Harold II was defeated at the Battle of Hastings by what Norman leader?" → William the Conqueror
+"King Leonidas of Sparta met defeat at what famous ancient battle?" → Thermopylae
+
+[Science]
+"The gall! This internal organ's main functions include assisting digestion and regulating blood sugar." → Pancreas
+"These ductless glands release hormones directly into the bloodstream." → Endocrine glands
+
+[Brands & Products]
+"This soda, introduced in 1893, was originally called Brad's Drink." → Pepsi
+"Buffalo Wild Wings goes by the nickname BW3 — what did the third 'W' originally stand for?" → Weck
+
+[Food & Drink]
+"This fruit-flavored alcoholic beverage was founded in 2005 by three Ohio State fraternity members." → Four Loko
+"Ossobuco is made with vegetables, white wine, broth, and what specific protein?" → Veal shank
+
+[US History]
+"In 1975, Jimmy Hoffa is believed to have disappeared in what U.S. state?" → Michigan
+"Who was the last U.S. President from the Democratic-Republican party?" → John Quincy Adams
+
+[Viral Internet / General Knowledge]
+"Candace Payne went viral in 2016 for a Facebook video of herself wearing what costume?" → Chewbacca mask
+"Robert Galbraith is a pen name for what enormously famous author?" → J.K. Rowling
+
+WHAT MAKES THESE GREAT:
+- They use clever setups ("The gall!", "Long hair, don't care!") to add personality
+- They give a rich, specific scenario rather than just "who/what is X"
+- They reward people who truly know their stuff — not Googlers
+- Answers are crisp: one name, one word, one short phrase
+- Questions feel like they come from a human who loves trivia, not a textbook
 
 ═══════════════════════════════════════════
 OUTPUT FORMAT
