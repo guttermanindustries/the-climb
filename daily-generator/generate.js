@@ -62,11 +62,12 @@ async function main() {
 
   try {
     const allQuestions = await generateAllQuestions(modesNeeded);
+    const validated = await validateQuestions(allQuestions);
 
     for (const mode of modesNeeded) {
-      if (allQuestions[mode]) {
-        await storeQuestions(mode, allQuestions[mode]);
-        console.log(`  ✅ ${mode}: ${allQuestions[mode].length} questions stored`);
+      if (validated[mode]) {
+        await storeQuestions(mode, validated[mode]);
+        console.log(`  ✅ ${mode}: ${validated[mode].length} questions stored`);
       }
     }
   } catch (err) {
@@ -81,9 +82,9 @@ async function main() {
 async function generateAllQuestions(modes) {
   const modesSection = modes.map(mode => {
     const desc = {
-      easy:   'EASY — questions a typical adult can answer. Think: iconic movies, famous athletes, basic history, household brand names. Should feel achievable.',
-      medium: 'MEDIUM — requires real knowledge. About half of players will know. Mix popular and slightly deeper facts. MUST use completely different topics/people/events than the easy questions.',
-      hard:   'HARD — only trivia enthusiasts will know. Specific records, exact years, niche facts, deep cuts. MUST use completely different topics/people/events than easy and medium.'
+      easy:   'EASY — First round of a good pub quiz. A casual fan should get it, but it should NOT be embarrassingly obvious. Ask about a specific detail of a famous thing — not the famous thing itself. BAD examples (too easy): "What sport does LeBron James play?", "What country is the Eiffel Tower in?", "Who sang Thriller?". GOOD examples: a specific record, a supporting character, a famous tagline, a notable "first", a well-known but not totally obvious fact. Target: 55-70% of adults get it right.',
+      medium: 'MEDIUM — requires real knowledge. About half of players will know. Mix popular and slightly deeper facts. The answer should make someone say "oh right!" not "never heard of that." Target: 30-45% of adults get it right. MUST use completely different topics/people/events than the easy questions.',
+      hard:   'HARD — only trivia enthusiasts will know. The ANSWER itself must be obscure — not just the question framing. If the answer is a household name (e.g. "Michael Jordan", "The Beatles", "Apple"), it is NOT hard enough. Ask about deep cuts: backup players, B-side tracks, minor characters, specific stats, niche records, forgotten figures. Target: 5-20% of adults get it right. MUST use completely different topics/people/events than easy and medium.'
     }[mode];
     return `### ${mode.toUpperCase()} SET\n${desc}`;
   }).join('\n\n');
@@ -116,6 +117,8 @@ CRITICAL ACCURACY RULES (strictly enforce):
 6. SHORT ANSWERS: Answers must be a name, word, number, or very short phrase — never a full sentence.
 7. ANSWER VARIANTS: In autocomplete, include the correct answer plus 3-4 plausible wrong answers that are thematically related (same sport, same era, same genre, etc.) to make the dropdown genuinely challenging. Do NOT always put the correct answer first — vary its position (sometimes 1st, sometimes 2nd, 3rd, or 4th) so players can't just pick the top option.
 8. NO YEAR ANSWERS: Never write a question where the answer is a year (e.g. "1969", "2003"). Questions asking "what year did X happen?" are forbidden. Focus on names, places, people, things, and titles instead.
+9. DIFFICULTY SELF-CHECK: Before finalizing each question, ask yourself — "Would a random adult on the street know this?" Easy=probably yes, Medium=maybe, Hard=probably not. For HARD specifically: if the answer is a mega-famous name that anyone would recognize (a #1 all-time athlete, a globally iconic brand, a song everyone knows), rewrite the question or replace it. The answer must be genuinely obscure.
+10. NO EASY ANSWERS IN HARD: Scan your hard questions before submitting. If any hard answer is something like "Michael Jordan", "The Beatles", "Shakespeare", "Nike", "New York", "Tom Hanks" — it is not hard enough. Replace it.
 
 ═══════════════════════════════════════════
 STYLE GUIDE — Write questions with personality and specificity
@@ -230,6 +233,91 @@ Only include keys for the difficulty sets requested: ${modes.join(', ')}.`;
   }
 
   return parsed;
+}
+
+// ── Validate questions with a second fact-check API pass ─────────────────────
+async function validateQuestions(allQuestions) {
+  // Flatten all Q&A pairs with mode + index for tracking
+  const flat = [];
+  for (const [mode, qs] of Object.entries(allQuestions)) {
+    qs.forEach((q, i) => flat.push({
+      mode, index: i,
+      question: q.question,
+      answer: q.answer,
+      category: q.category
+    }));
+  }
+
+  const prompt = `You are a strict trivia fact-checker. Your only job is to verify factual accuracy.
+
+Review each question and answer below. For each item, determine:
+1. Is the stated answer definitively, unambiguously correct?
+2. Is there only ONE reasonable correct answer (not multiple valid answers)?
+
+Return a JSON array containing ONLY items that have problems. For each problem item include:
+- "mode": the difficulty mode (easy/medium/hard)
+- "index": the 0-based index number
+- "action": "fix" if the answer is wrong but you know the correct one, or "remove" if the question is broken, unanswerable, or ambiguous
+- "corrected_answer": the correct answer string (only when action is "fix")
+- "reason": one sentence explaining the issue
+
+If a question and answer are correct, do NOT include it — only flag real errors.
+Return an empty array [] if everything checks out.
+Return ONLY raw JSON — no markdown, no code fences, no explanation.
+
+Questions to verify:
+${JSON.stringify(flat, null, 2)}`;
+
+  console.log('  ⏳ Running fact-check validation pass...');
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-5-20250929',
+    max_tokens: 4000,
+    messages: [{ role: 'user', content: prompt }]
+  });
+
+  const text = message.content.map(c => c.text || '').join('');
+  const clean = text.replace(/```json|```/g, '').trim();
+
+  let issues;
+  try {
+    issues = JSON.parse(clean);
+  } catch (e) {
+    console.warn('  ⚠️  Validator returned unparseable JSON — skipping validation pass');
+    return allQuestions;
+  }
+
+  if (!Array.isArray(issues) || issues.length === 0) {
+    console.log('  ✅ Fact-check passed — all answers verified');
+    return allQuestions;
+  }
+
+  console.log(`  🔍 Fact-check found ${issues.length} issue(s):`);
+  const toRemove = new Set();
+
+  for (const issue of issues) {
+    const { mode, index, action, corrected_answer, reason } = issue;
+    if (!allQuestions[mode] || !allQuestions[mode][index]) continue;
+    const q = allQuestions[mode][index];
+
+    if (action === 'fix' && corrected_answer) {
+      console.log(`    🔧 [${mode}][${index}] "${q.answer}" → "${corrected_answer}" — ${reason}`);
+      allQuestions[mode][index].answer = corrected_answer;
+      // Ensure corrected answer appears in autocomplete
+      if (!allQuestions[mode][index].autocomplete.includes(corrected_answer)) {
+        allQuestions[mode][index].autocomplete[0] = corrected_answer;
+      }
+    } else if (action === 'remove') {
+      console.log(`    🗑️  [${mode}][${index}] Removed: "${q.question}" — ${reason}`);
+      toRemove.add(`${mode}:${index}`);
+    }
+  }
+
+  // Filter out removed questions
+  for (const mode of Object.keys(allQuestions)) {
+    allQuestions[mode] = allQuestions[mode].filter((_, i) => !toRemove.has(`${mode}:${i}`));
+  }
+
+  return allQuestions;
 }
 
 // ── Store in Supabase ─────────────────────────────────────────────────────────
