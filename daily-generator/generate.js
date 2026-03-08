@@ -115,7 +115,7 @@ CRITICAL ACCURACY RULES (strictly enforce):
 4. VARIETY WITHIN CATEGORY: The ${QS_PER_CATEGORY} questions within each category in a set must cover different sub-topics (e.g. for Music: not 3 questions about the same artist).
 5. HINTS MUST NOT REVEAL THE ANSWER: The hint should give useful context that narrows down the answer — but must not contain the answer or any part of it. Good hints reference related facts, time period, genre, or context.
 6. SHORT ANSWERS: Answers must be a name, word, number, or very short phrase — never a full sentence.
-7. ANSWER VARIANTS: In autocomplete, include the correct answer plus 3-4 plausible wrong answers that are thematically related (same sport, same era, same genre, etc.) to make the dropdown genuinely challenging. Do NOT always put the correct answer first — vary its position (sometimes 1st, sometimes 2nd, 3rd, or 4th) so players can't just pick the top option.
+7. AUTOCOMPLETE POOL: Generate a large pool of 20 autocomplete options per question. Include the correct answer plus 19 plausible wrong answers that are all thematically related (same sport, same era, same genre, same domain). The goal: when a player types a few letters, they see many plausible options — the correct answer should be buried among real-sounding alternatives, NOT obvious. Examples: if the answer is a QB, include 19 other QBs. If the answer is a movie, include 19 other movies in the same genre/era. Do NOT scatter the correct answer — just make sure it's in the list somewhere. Mix in options that share letters/substrings with the correct answer so filtering feels natural.
 8. NO YEAR ANSWERS: Never write a question where the answer is a year (e.g. "1969", "2003"). Questions asking "what year did X happen?" are forbidden. Focus on names, places, people, things, and titles instead.
 9. DIFFICULTY SELF-CHECK: Before finalizing each question, ask yourself — "Would a random adult on the street know this?" Easy=probably yes, Medium=maybe, Hard=probably not. For HARD specifically: if the answer is a mega-famous name that anyone would recognize (a #1 all-time athlete, a globally iconic brand, a song everyone knows), rewrite the question or replace it. The answer must be genuinely obscure.
 10. NO EASY ANSWERS IN HARD: Scan your hard questions before submitting. If any hard answer is something like "Michael Jordan", "The Beatles", "Shakespeare", "Nike", "New York", "Tom Hanks" — it is not hard enough. Replace it.
@@ -195,7 +195,7 @@ Each mode's array must have exactly ${totalPerMode} question objects (${QS_PER_C
       "answer": "Exact short answer",
       "hint": "A useful contextual clue that does not reveal the answer",
       "category": "Category name from the list above",
-      "autocomplete": ["correct answer", "alternate phrasing", "plausible wrong answer 1", "plausible wrong answer 2"]
+      "autocomplete": ["correct answer", "plausible wrong 1", "plausible wrong 2", "...19 total options, all thematically related"]
     }
   ],
   "medium": [ ... ${totalPerMode} questions ... ],
@@ -226,8 +226,8 @@ Only include keys for the difficulty sets requested: ${modes.join(', ')}.`;
       if (!q.question || !q.answer || !q.hint || !q.autocomplete) {
         throw new Error(`${mode} question ${i + 1} missing required fields`);
       }
-      if (!Array.isArray(q.autocomplete) || q.autocomplete.length < 3) {
-        throw new Error(`${mode} question ${i + 1} has insufficient autocomplete options`);
+      if (!Array.isArray(q.autocomplete) || q.autocomplete.length < 10) {
+        throw new Error(`${mode} question ${i + 1} has insufficient autocomplete options (got ${q.autocomplete.length}, need 10+)`);
       }
     });
   }
