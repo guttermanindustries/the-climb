@@ -250,18 +250,23 @@ async function validateQuestions(allQuestions) {
 
   const prompt = `You are a strict trivia fact-checker. Your only job is to verify factual accuracy.
 
-Review each question and answer below. For each item, determine:
+Review each question and answer below. Check ALL of the following for each item:
 1. Is the stated answer definitively, unambiguously correct?
 2. Is there only ONE reasonable correct answer (not multiple valid answers)?
+3. Are ALL factual claims INSIDE the question text accurate? (e.g. if the question says "running back" but the person is actually a quarterback, that is an error in the question itself — flag it)
+4. Are positions, roles, titles, nationalities, and other descriptors in the question text correct for the named person or subject?
+
+Common error to watch for: question text describes someone with the wrong position/role/title (e.g. calling a QB a "running back", calling a singer a "rapper", calling a director an "actor"). These must be flagged even if the answer itself is technically correct.
 
 Return a JSON array containing ONLY items that have problems. For each problem item include:
 - "mode": the difficulty mode (easy/medium/hard)
 - "index": the 0-based index number
-- "action": "fix" if the answer is wrong but you know the correct one, or "remove" if the question is broken, unanswerable, or ambiguous
-- "corrected_answer": the correct answer string (only when action is "fix")
-- "reason": one sentence explaining the issue
+- "action": "fix" if you can correct it (wrong answer OR fixable question text), or "remove" if the question is too broken to fix
+- "corrected_answer": the correct answer string (only when the answer itself is wrong)
+- "corrected_question": the corrected question text (only when the question text contains the error)
+- "reason": one sentence explaining exactly what is wrong
 
-If a question and answer are correct, do NOT include it — only flag real errors.
+If everything is correct, do NOT include it — only flag real errors.
 Return an empty array [] if everything checks out.
 Return ONLY raw JSON — no markdown, no code fences, no explanation.
 
@@ -295,16 +300,22 @@ ${JSON.stringify(flat, null, 2)}`;
   const toRemove = new Set();
 
   for (const issue of issues) {
-    const { mode, index, action, corrected_answer, reason } = issue;
+    const { mode, index, action, corrected_answer, corrected_question, reason } = issue;
     if (!allQuestions[mode] || !allQuestions[mode][index]) continue;
     const q = allQuestions[mode][index];
 
-    if (action === 'fix' && corrected_answer) {
-      console.log(`    🔧 [${mode}][${index}] "${q.answer}" → "${corrected_answer}" — ${reason}`);
-      allQuestions[mode][index].answer = corrected_answer;
-      // Ensure corrected answer appears in autocomplete
-      if (!allQuestions[mode][index].autocomplete.includes(corrected_answer)) {
-        allQuestions[mode][index].autocomplete[0] = corrected_answer;
+    if (action === 'fix') {
+      if (corrected_answer) {
+        console.log(`    🔧 [${mode}][${index}] Answer fixed: "${q.answer}" → "${corrected_answer}" — ${reason}`);
+        allQuestions[mode][index].answer = corrected_answer;
+        // Ensure corrected answer appears in autocomplete
+        if (!allQuestions[mode][index].autocomplete.includes(corrected_answer)) {
+          allQuestions[mode][index].autocomplete[0] = corrected_answer;
+        }
+      }
+      if (corrected_question) {
+        console.log(`    🔧 [${mode}][${index}] Question fixed: "${q.question}" → "${corrected_question}" — ${reason}`);
+        allQuestions[mode][index].question = corrected_question;
       }
     } else if (action === 'remove') {
       console.log(`    🗑️  [${mode}][${index}] Removed: "${q.question}" — ${reason}`);
