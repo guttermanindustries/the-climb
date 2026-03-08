@@ -78,62 +78,19 @@ async function main() {
   console.log('\n🏆 All done! Today\'s questions are ready.\n');
 }
 
-// ── Generate all questions in one call to prevent topic overlap ───────────────
+// ── Generate all questions — one API call per mode to avoid token limits ───────
 async function generateAllQuestions(modes) {
-  const modesSection = modes.map(mode => {
-    const desc = {
-      easy:   'EASY — First round of a good pub quiz. A casual fan should get it, but it should NOT be embarrassingly obvious. Ask about a specific detail of a famous thing — not the famous thing itself. BAD examples (too easy): "What sport does LeBron James play?", "What country is the Eiffel Tower in?", "Who sang Thriller?". GOOD examples: a specific record, a supporting character, a famous tagline, a notable "first", a well-known but not totally obvious fact. Target: 55-70% of adults get it right.',
-      medium: 'MEDIUM — requires real knowledge. About half of players will know. Mix popular and slightly deeper facts. The answer should make someone say "oh right!" not "never heard of that." Target: 30-45% of adults get it right. MUST use completely different topics/people/events than the easy questions.',
-      hard:   'HARD — only trivia enthusiasts will know. The ANSWER itself must be obscure — not just the question framing. If the answer is a household name (e.g. "Michael Jordan", "The Beatles", "Apple"), it is NOT hard enough. Ask about deep cuts: backup players, B-side tracks, minor characters, specific stats, niche records, forgotten figures. Target: 5-20% of adults get it right. MUST use completely different topics/people/events than easy and medium.'
-    }[mode];
-    return `### ${mode.toUpperCase()} SET\n${desc}`;
-  }).join('\n\n');
+  const DIFFICULTY_DESC = {
+    easy:   'EASY — First round of a good pub quiz. A casual fan should get it, but it should NOT be embarrassingly obvious. Ask about a specific detail of a famous thing — not the famous thing itself. BAD examples (too easy): "What sport does LeBron James play?", "What country is the Eiffel Tower in?", "Who sang Thriller?". GOOD examples: a specific record, a supporting character, a famous tagline, a notable "first", a well-known but not totally obvious fact. Target: 55-70% of adults get it right.',
+    medium: 'MEDIUM — requires real knowledge. About half of players will know. Mix popular and slightly deeper facts. The answer should make someone say "oh right!" not "never heard of that." Target: 30-45% of adults get it right.',
+    hard:   'HARD — only trivia enthusiasts will know. The ANSWER itself must be obscure — not just the question framing. If the answer is a household name (e.g. "Michael Jordan", "The Beatles", "Apple"), it is NOT hard enough. Ask about deep cuts: backup players, B-side tracks, minor characters, specific stats, niche records, forgotten figures. Target: 5-20% of adults get it right.'
+  };
 
-  const totalPerMode = CATEGORIES.length * QS_PER_CATEGORY; // 39
-
-  const prompt = `You are generating daily trivia questions for "The Climb," a daily trivia game.
-Today's date: ${TODAY}
-
-HOW THE GAME WORKS: Players see 3 random category choices at each of 10 rungs and pick one to answer.
-So each difficulty needs a POOL of ${totalPerMode} questions (${QS_PER_CATEGORY} per category × ${CATEGORIES.length} categories).
-
-Generate ${modes.length * totalPerMode} trivia questions total — ${totalPerMode} per difficulty set.
-Each set must include EXACTLY ${QS_PER_CATEGORY} questions per category, covering all ${CATEGORIES.length} categories.
-
-Categories (use exactly these names):
-${CATEGORIES.map((c, i) => `${i + 1}. ${c}`).join('\n')}
-
-Difficulty sets needed:
-${modesSection}
-
-═══════════════════════════════════════════
-CRITICAL ACCURACY RULES (strictly enforce):
-═══════════════════════════════════════════
-1. FACTUAL CERTAINTY: Only write questions you are 100% certain are correct. If there is any doubt about a fact — especially sports championships, election results, award winners, or records from 2023 onward — do NOT use it. Stick to well-established facts.
-2. NO ANSWER IN QUESTION: The answer word or phrase must NEVER appear anywhere in the question text. Read back every question to verify this before including it.
-3. NO OVERLAP: Each difficulty set must use entirely different topics, people, events, and facts — even within the same category. Do not reuse any person, team, movie, show, song, or event across difficulty sets.
-4. VARIETY WITHIN CATEGORY: The ${QS_PER_CATEGORY} questions within each category in a set must cover different sub-topics (e.g. for Music: not 3 questions about the same artist).
-5. HINTS MUST NOT REVEAL THE ANSWER: The hint should give useful context that narrows down the answer — but must not contain the answer or any part of it. Good hints reference related facts, time period, genre, or context.
-6. SHORT ANSWERS: Answers must be a name, word, number, or very short phrase — never a full sentence.
-7. AUTOCOMPLETE POOL: Generate a large pool of 20 autocomplete options per question. Include the correct answer plus 19 plausible wrong answers that are all thematically related (same sport, same era, same genre, same domain). The goal: when a player types a few letters, they see many plausible options — the correct answer should be buried among real-sounding alternatives, NOT obvious. Examples: if the answer is a QB, include 19 other QBs. If the answer is a movie, include 19 other movies in the same genre/era. Do NOT scatter the correct answer — just make sure it's in the list somewhere. Mix in options that share letters/substrings with the correct answer so filtering feels natural.
-8. NO YEAR ANSWERS: Never write a question where the answer is a year (e.g. "1969", "2003"). Questions asking "what year did X happen?" are forbidden. Focus on names, places, people, things, and titles instead.
-9. DIFFICULTY SELF-CHECK: Before finalizing each question, ask yourself — "Would a random adult on the street know this?" Easy=probably yes, Medium=maybe, Hard=probably not. For HARD specifically: if the answer is a mega-famous name that anyone would recognize (a #1 all-time athlete, a globally iconic brand, a song everyone knows), rewrite the question or replace it. The answer must be genuinely obscure.
-10. NO EASY ANSWERS IN HARD: Scan your hard questions before submitting. If any hard answer is something like "Michael Jordan", "The Beatles", "Shakespeare", "Nike", "New York", "Tom Hanks" — it is not hard enough. Replace it.
-
-═══════════════════════════════════════════
-STYLE GUIDE — Write questions with personality and specificity
-═══════════════════════════════════════════
-Study these example questions carefully. Match their tone: punchy, conversational, specific, and occasionally playful. These are the gold standard for how questions should feel.
-
-GREAT STYLE EXAMPLES (do NOT reuse these exact questions):
-
-[Pro Sports/Players]
+  const STYLE_EXAMPLES = `[Pro Sports/Players]
 "Muhammad Ali took on who in what they called the 'Thrilla in Manila'?" → Joe Frazier
 "Floyd Mayweather's Top-3 selling PPVs include fights with Manny Pacquiao and Conor McGregor — who's the third?" → Oscar De La Hoya
-"In 2003, this Canadian golfer became the first left-handed player to win the Masters." → Mike Weir
 
 [College Sports/Players]
-"Stewart Cink won his first Major by defeating what golfer in a playoff at the 2009 Open Championship?" → Tom Watson
 "Loyola-Chicago was the last 11-seed to make the NCAA Final Four — what 11-seed did it before them?" → Virginia Commonwealth
 
 [Music]
@@ -142,87 +99,100 @@ GREAT STYLE EXAMPLES (do NOT reuse these exact questions):
 
 [Movies]
 "A symbol of what animal was on the back of Ryan Gosling's jacket in the movie Drive?" → Scorpion
-"'Christmas with the Kranks' is based on the 2001 novel 'Skipping Christmas' by what author?" → John Grisham
 
 [TV]
-"Adam Savage and Jamie Hyneman are the co-hosts of what popular television show?" → MythBusters
 "Joseph Gordon-Levitt played a character named Tommy on what sitcom that ran from 1996 through 2001?" → 3rd Rock from the Sun
 
 [Geography]
 "Ljubljana is the capital of what European country?" → Slovenia
-"Valletta is the capital of what island nation in the Mediterranean?" → Malta
 
 [History]
 "English King Harold II was defeated at the Battle of Hastings by what Norman leader?" → William the Conqueror
-"King Leonidas of Sparta met defeat at what famous ancient battle?" → Thermopylae
 
 [Science]
 "The gall! This internal organ's main functions include assisting digestion and regulating blood sugar." → Pancreas
-"These ductless glands release hormones directly into the bloodstream." → Endocrine glands
 
 [Brands & Products]
-"This soda, introduced in 1893, was originally called Brad's Drink." → Pepsi
 "Buffalo Wild Wings goes by the nickname BW3 — what did the third 'W' originally stand for?" → Weck
 
 [Food & Drink]
-"This fruit-flavored alcoholic beverage was founded in 2005 by three Ohio State fraternity members." → Four Loko
 "Ossobuco is made with vegetables, white wine, broth, and what specific protein?" → Veal shank
 
 [US History]
 "In 1975, Jimmy Hoffa is believed to have disappeared in what U.S. state?" → Michigan
-"Who was the last U.S. President from the Democratic-Republican party?" → John Quincy Adams
 
 [Viral Internet / General Knowledge]
-"Candace Payne went viral in 2016 for a Facebook video of herself wearing what costume?" → Chewbacca mask
-"Robert Galbraith is a pen name for what enormously famous author?" → J.K. Rowling
+"Robert Galbraith is a pen name for what enormously famous author?" → J.K. Rowling`;
 
-WHAT MAKES THESE GREAT:
-- They use clever setups ("The gall!", "Long hair, don't care!") to add personality
-- They give a rich, specific scenario rather than just "who/what is X"
-- They reward people who truly know their stuff — not Googlers
-- Answers are crisp: one name, one word, one short phrase
-- Questions feel like they come from a human who loves trivia, not a textbook
+  const totalPerMode = CATEGORIES.length * QS_PER_CATEGORY; // 39
+
+  const allQuestions = {};
+  const generatedSoFar = [];  // Track topics used to prevent overlap across modes
+
+  for (const mode of modes) {
+    console.log(`  ⏳ Generating ${mode} questions...`);
+
+    const overlapWarning = generatedSoFar.length > 0
+      ? `\nAVOID OVERLAP: Do NOT reuse any person, team, movie, show, song, event, or topic that already appeared in: ${generatedSoFar.join(', ')} sets.`
+      : '';
+
+    const prompt = `You are generating daily trivia questions for "The Climb," a daily trivia game.
+Today's date: ${TODAY}
+
+HOW THE GAME WORKS: Players see 3 random category choices at each of 10 rungs and pick one to answer.
+Generate exactly ${totalPerMode} ${mode.toUpperCase()} trivia questions (${QS_PER_CATEGORY} per category × ${CATEGORIES.length} categories).
+
+Difficulty: ${DIFFICULTY_DESC[mode]}${overlapWarning}
+
+Categories (use exactly these names):
+${CATEGORIES.map((c, i) => `${i + 1}. ${c}`).join('\n')}
+
+═══════════════════════════════════════════
+CRITICAL ACCURACY RULES (strictly enforce):
+═══════════════════════════════════════════
+1. FACTUAL CERTAINTY: Only write questions you are 100% certain are correct. If there is any doubt about a fact — especially sports championships, election results, award winners, or records from 2023 onward — do NOT use it. Stick to well-established facts.
+2. NO ANSWER IN QUESTION: The answer word or phrase must NEVER appear anywhere in the question text.
+3. VARIETY WITHIN CATEGORY: The ${QS_PER_CATEGORY} questions within each category must cover different sub-topics.
+4. HINTS MUST NOT REVEAL THE ANSWER: The hint should give useful context but must not contain the answer or any part of it.
+5. SHORT ANSWERS: Answers must be a name, word, number, or very short phrase — never a full sentence.
+6. AUTOCOMPLETE POOL: Generate exactly 20 autocomplete options per question. Include the correct answer plus 19 plausible wrong answers that are all thematically related (same sport, same era, same genre, same domain). The correct answer must be buried among real-sounding alternatives — NOT obvious. Mix in options that share letters/substrings with the correct answer so filtering feels natural.
+7. NO YEAR ANSWERS: Never write a question where the answer is a year. Focus on names, places, people, things, and titles instead.
+8. DIFFICULTY SELF-CHECK: Before finalizing each question, ask yourself — "Would a random adult on the street know this?" Easy=probably yes, Medium=maybe, Hard=probably not.
+9. NO EASY ANSWERS IN HARD: For hard questions, if the answer is something like "Michael Jordan", "The Beatles", "Shakespeare", "Nike", "New York", "Tom Hanks" — it is not hard enough. Replace it.
+10. QUESTION ACCURACY: All facts INSIDE the question text must be accurate — including positions, roles, nationalities, and titles. Do not call a QB a "running back", a singer a "rapper", etc.
+
+STYLE GUIDE — match this tone: punchy, conversational, specific, occasionally playful:
+${STYLE_EXAMPLES}
 
 ═══════════════════════════════════════════
 OUTPUT FORMAT
 ═══════════════════════════════════════════
-Return ONLY a raw JSON object with mode keys. No markdown, no explanation, no code fences.
-Each mode's array must have exactly ${totalPerMode} question objects (${QS_PER_CATEGORY} per category, all ${CATEGORIES.length} categories represented):
-{
-  "easy": [
-    {
-      "question": "Question text here?",
-      "answer": "Exact short answer",
-      "hint": "A useful contextual clue that does not reveal the answer",
-      "category": "Category name from the list above",
-      "autocomplete": ["correct answer", "plausible wrong 1", "plausible wrong 2", "...19 total options, all thematically related"]
+Return ONLY a raw JSON array. No markdown, no explanation, no code fences. No wrapper object.
+The array must have exactly ${totalPerMode} question objects (${QS_PER_CATEGORY} per category, all ${CATEGORIES.length} categories):
+[
+  {
+    "question": "Question text here?",
+    "answer": "Exact short answer",
+    "hint": "A useful contextual clue that does not reveal the answer",
+    "category": "Category name from the list above",
+    "autocomplete": ["correct answer", "wrong 1", "wrong 2", "...20 total, all thematically related"]
+  }
+]`;
+
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 12000,  // 39 questions × 20 autocomplete options per mode
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const text = message.content.map(c => c.text || '').join('');
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    if (!Array.isArray(parsed) || parsed.length !== totalPerMode) {
+      throw new Error(`Expected ${totalPerMode} ${mode} questions, got ${parsed?.length}`);
     }
-  ],
-  "medium": [ ... ${totalPerMode} questions ... ],
-  "hard": [ ... ${totalPerMode} questions ... ]
-}
-
-Only include keys for the difficulty sets requested: ${modes.join(', ')}.`;
-
-  const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5-20250929',  // Sonnet: better accuracy for trivia facts
-    max_tokens: 16000,  // 39 questions × 3 modes needs more tokens
-    messages: [{ role: 'user', content: prompt }]
-  });
-
-  const text = message.content.map(c => c.text || '').join('');
-  const clean = text.replace(/```json|```/g, '').trim();
-  const parsed = JSON.parse(clean);
-
-  const expectedCount = CATEGORIES.length * QS_PER_CATEGORY; // 39
-
-  // Validate each mode
-  for (const mode of modes) {
-    const qs = parsed[mode];
-    if (!Array.isArray(qs) || qs.length !== expectedCount) {
-      throw new Error(`Expected ${expectedCount} ${mode} questions, got ${qs?.length}`);
-    }
-    qs.forEach((q, i) => {
+    parsed.forEach((q, i) => {
       if (!q.question || !q.answer || !q.hint || !q.autocomplete) {
         throw new Error(`${mode} question ${i + 1} missing required fields`);
       }
@@ -230,9 +200,13 @@ Only include keys for the difficulty sets requested: ${modes.join(', ')}.`;
         throw new Error(`${mode} question ${i + 1} has insufficient autocomplete options (got ${q.autocomplete.length}, need 10+)`);
       }
     });
+
+    allQuestions[mode] = parsed;
+    generatedSoFar.push(mode);
+    console.log(`  ✅ ${mode}: ${parsed.length} questions generated`);
   }
 
-  return parsed;
+  return allQuestions;
 }
 
 // ── Validate questions with a second fact-check API pass ─────────────────────
