@@ -1,234 +1,308 @@
 /**
- * THE CLIMB – Daily Question Generator (v4)
- * ------------------------------------------
- * Runs once per day via GitHub Actions.
- * Generates 39 questions per mode (mc + type) and stores in Supabase.
+ * THE CLIMB — Daily Question Generator
+ * ----------------------------------------
+ * Run this script once per day (e.g. midnight via cron or GitHub Actions).
+ * It calls the Claude API to generate 39 questions per difficulty (3 per category),
+ * then stores them in Supabase so all players get the same question pool.
+ * Players see 3 random category choices per rung and pick one to answer.
  *
- * v4 improvements:
- * - Topic-level dedup: blocks subjects used in the last 30 days, not just exact question text
- * - Each question now has a `topic` field (1-4 word subject tag)
- * - Each question now has a `difficulty` field (easy / medium / hard)
- * - Difficulty distributed ~35% easy / 40% medium / 25% hard per mode
- * - Dedup window extended from 14 → 30 days
+ * Setup: npm install @anthropic-ai/sdk @supabase/supabase-js dotenv
+ * Run:   node generate.js
  */
 
 require('dotenv').config();
 const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
 
+// ── Config (set these in .env file) ──────────────────────────────────────────
 const ANTHROPIC_KEY  = process.env.ANTHROPIC_API_KEY;
 const SUPABASE_URL   = process.env.SUPABASE_URL;
-const SUPABASE_KEY   = process.env.SUPABASE_SERVICE_KEY;
+const SUPABASE_KEY   = process.env.SUPABASE_SERVICE_KEY; // Use SERVICE key here (not anon)
 
 if (!ANTHROPIC_KEY || !SUPABASE_URL || !SUPABASE_KEY) {
   console.error('❌ Missing environment variables. Check your .env file.');
+  console.error('   Required: ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY');
   process.exit(1);
 }
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_KEY });
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const TODAY = new Date().toISOString().slice(0, 10);
+// ── Constants ─────────────────────────────────────────────────────────────────
+const TODAY = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
-// ── Category plan: 39 questions per mode ──────────────────────────────────────
-const CATEGORY_PLAN = [
-  ['Geography',              4],
-  ['US History',             4],
-  ['Music',                  4],
-  ['TV',                     4],
-  ['Movies',                 4],
-  ['Pro Sports/Players',     4],
-  ['College Sports/Players', 4],
-  ['Science',                4],
-  ['General Knowledge',      3],
-  ['History',                3],
-  ['Food & Drink',           2],
+// 13 categories × 3 questions each = 39 per mode
+const CATEGORIES = [
+  'Pro Sports/Players', 'College Sports/Players', 'Music', 'Movies', 'TV',
+  'Geography', 'History', 'Science', 'Brands & Products',
+  'Viral Internet', 'General Knowledge', 'Food & Drink', 'US History'
 ];
-
-const MODES = ['mc', 'type'];
-
-const MODE_DESC = {
-  mc:   'Multiple Choice mode — questions should be answerable by most adults who follow pop culture, sports, and news. The question will be shown with 4 answer choices, so it needs to be specific enough that only one is clearly right. Aim for roughly 60-70% of players getting it right.',
-  type: 'Open Answer mode — players type in the answer with autocomplete help. Questions can be slightly more specific than MC, but must still be fair. The answer must be a specific person, place, thing, or short phrase — something a knowledgeable player could reasonably type. Aim for roughly 40-50% of players getting it right.',
-};
-
-const DIFFICULTY_DESC = {
-  easy:   'EASY — most adults who casually follow pop culture, sports, and news will know this immediately. Target: ~70%+ correct rate.',
-  medium: 'MEDIUM — requires some knowledge but is fair for engaged trivia players. Target: ~45-65% correct rate.',
-  hard:   'HARD — specific enough that only well-read or enthusiastic fans would know. Still a real fact, not obscure trivia. Target: ~20-40% correct rate.',
-};
+const QS_PER_CATEGORY = 3; // Questions per category per mode
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log(`\n🏔️ The Climb Daily Generator v4 — ${TODAY}\n`);
+  console.log(`\n🎯 The Climb Daily Generator — ${TODAY}\n`);
 
-  // Check which modes still need generating today
+  // Check if today's questions already exist
   const { data: existing } = await sb
     .from('daily_questions')
     .select('mode')
     .eq('date', TODAY);
 
   const existingModes = (existing || []).map(r => r.mode);
-  const modesToGenerate = MODES.filter(m => !existingModes.includes(m));
+  const modesNeeded = ['easy', 'medium', 'hard'].filter(m => !existingModes.includes(m));
 
-  if (modesToGenerate.length === 0) {
-    console.log('✅ Already generated for today. Nothing to do.');
+  if (modesNeeded.length === 0) {
+    console.log('✅ Today\'s questions already generated. Nothing to do.');
     return;
   }
 
-  // ── Topic-based dedup: load last 30 days ──────────────────────────────────
-  const { recentTexts, recentTopics } = await loadRecentQuestions();
-  console.log(`📑 Loaded ${recentTexts.size} recent question texts for exact dedup`);
-  console.log(`🏷️  Loaded ${recentTopics.size} recent topics for subject-level dedup\n`);
+  console.log(`📝 Generating questions for: ${modesNeeded.join(', ')}\n`);
+  console.log('  ⏳ Generating all questions in one pass (prevents overlap)...');
 
-  for (const mode of modesToGenerate) {
-    try {
-      console.log(`  ⏳ Generating ${mode} questions...`);
-      const questions = await generateQuestions(mode, recentTexts, recentTopics);
-      await storeQuestions(mode, questions);
-      console.log(`  ✅ ${mode}: ${questions.length} questions stored\n`);
-    } catch (err) {
-      console.error(`  ❌ Failed to generate ${mode}:`, err.message);
-      process.exit(1);
+  try {
+    const allQuestions = await generateAllQuestions(modesNeeded);
+    const validated = await validateQuestions(allQuestions);
+
+    for (const mode of modesNeeded) {
+      if (validated[mode]) {
+        await storeQuestions(mode, validated[mode]);
+        console.log(`  ✅ ${mode}: ${validated[mode].length} questions stored`);
+      }
     }
+  } catch (err) {
+    console.error('  ❌ Generation failed:', err.message);
+    process.exit(1);
   }
 
-  console.log('🏁 Done! Today\'s questions are ready.\n');
+  console.log('\n🏆 All done! Today\'s questions are ready.\n');
 }
 
-// ── Load recent questions for dedup ──────────────────────────────────────────
-async function loadRecentQuestions() {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 30);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
+// ── Generate all questions — one API call per mode to avoid token limits ───────
+async function generateAllQuestions(modes) {
+  const DIFFICULTY_DESC = {
+    easy:   'EASY — First round of a good pub quiz. A casual fan should get it, but it should NOT be embarrassingly obvious. Ask about a specific detail of a famous thing — not the famous thing itself. BAD examples (too easy): "What sport does LeBron James play?", "What country is the Eiffel Tower in?", "Who sang Thriller?". GOOD examples: a specific record, a supporting character, a famous tagline, a notable "first", a well-known but not totally obvious fact. Target: 55-70% of adults get it right.',
+    medium: 'MEDIUM — requires real knowledge. About half of players will know. Mix popular and slightly deeper facts. The answer should make someone say "oh right!" not "never heard of that." Target: 30-45% of adults get it right.',
+    hard:   'HARD — only trivia enthusiasts will know. The ANSWER itself must be obscure — not just the question framing. If the answer is a household name (e.g. "Michael Jordan", "The Beatles", "Apple"), it is NOT hard enough. Ask about deep cuts: backup players, B-side tracks, minor characters, specific stats, niche records, forgotten figures. Target: 5-20% of adults get it right.'
+  };
 
-  const { data } = await sb
-    .from('daily_questions')
-    .select('questions')
-    .gte('date', cutoffStr);
+  const STYLE_EXAMPLES = `[Pro Sports/Players]
+"Muhammad Ali took on who in what they called the 'Thrilla in Manila'?" → Joe Frazier
+"Floyd Mayweather's Top-3 selling PPVs include fights with Manny Pacquiao and Conor McGregor — who's the third?" → Oscar De La Hoya
 
-  const recentTexts  = new Set();
-  const recentTopics = new Set();
+[College Sports/Players]
+"Loyola-Chicago was the last 11-seed to make the NCAA Final Four — what 11-seed did it before them?" → Virginia Commonwealth
 
-  for (const row of (data || [])) {
-    for (const q of (row.questions || [])) {
-      if (q.question) recentTexts.add(q.question.toLowerCase().trim());
-      // Use explicit topic if present; fall back to answer as proxy
-      const topic = (q.topic || q.answer || '').trim().toLowerCase();
-      if (topic) recentTopics.add(topic);
-    }
-  }
-  return { recentTexts, recentTopics };
-}
+[Music]
+"Bernie Taupin is an English lyricist best known for his long-term collaboration with what musician?" → Elton John
+"Alkaline Trio frontman Matt Skiba joined what band in 2015?" → blink-182
 
-// ── Generate questions for one mode ──────────────────────────────────────────
-async function generateQuestions(mode, recentTexts, recentTopics) {
-  const categoryLines = CATEGORY_PLAN.map(([cat, n]) =>
-    `- ${cat}: ${n} question${n > 1 ? 's' : ''}`
-  ).join('\n');
+[Movies]
+"A symbol of what animal was on the back of Ryan Gosling's jacket in the movie Drive?" → Scorpion
 
-  // Build blocked topics section
-  const topicList = [...recentTopics].sort().map(t => `  • ${t}`).join('\n');
-  const blockedTopicsSection = topicList
-    ? `\n🚫 BLOCKED TOPICS — These specific subjects, people, events, places, and things were used in the last 30 days. Do NOT generate any question whose answer or subject matter involves ANY item on this list. This is a hard block — even a tangentially related question is not allowed:\n${topicList}\n`
-    : '';
+[TV]
+"Joseph Gordon-Levitt played a character named Tommy on what sitcom that ran from 1996 through 2001?" → 3rd Rock from the Sun
 
-  // Also list recent question text as a secondary guard
-  const recentList = [...recentTexts].slice(0, 40).map(q => `  • ${q.slice(0, 90)}`).join('\n');
-  const recentSection = recentList
-    ? `\n📋 RECENTLY USED QUESTIONS (do not repeat or paraphrase):\n${recentList}\n`
-    : '';
+[Geography]
+"Ljubljana is the capital of what European country?" → Slovenia
 
-  const prompt = `You are generating questions for "The Climb", a daily trivia game. Generate exactly 39 trivia questions.
+[History]
+"English King Harold II was defeated at the Battle of Hastings by what Norman leader?" → William the Conqueror
 
-MODE: ${mode.toUpperCase()} — ${MODE_DESC[mode]}
+[Science]
+"The gall! This internal organ's main functions include assisting digestion and regulating blood sugar." → Pancreas
 
-CATEGORY QUOTAS (generate exactly this many per category):
-${categoryLines}
+[Brands & Products]
+"Buffalo Wild Wings goes by the nickname BW3 — what did the third 'W' originally stand for?" → Weck
 
-DIFFICULTY DISTRIBUTION — each question must be tagged as easy, medium, or hard:
-- easy:   ~14 questions — ${DIFFICULTY_DESC.easy}
-- medium: ~16 questions — ${DIFFICULTY_DESC.medium}
-- hard:   ~9 questions  — ${DIFFICULTY_DESC.hard}
-Spread difficulty across ALL categories. Do not cluster all hard questions in one category.
-${blockedTopicsSection}${recentSection}
-QUALITY RULES — read carefully, these are strict:
-1. DIFFICULTY SWEET SPOT: Match the difficulty tag honestly. An "easy" question should be answerable by most casual players. A "hard" question requires genuine specific knowledge.
-2. NO TRIVIA TRAPS: Avoid questions where the answer is a common acronym, a basic household brand asked generically, or something so famous it's on every beginner trivia list.
-3. FAMOUS BUT INTERESTING: Good questions feel like "oh yeah, I should know that!" — not "everyone knows that" or "nobody knows that."
-4. SPECIFIC ANSWERS ONLY: Answers must be a specific person's name, a place, a movie/show/song title, or a short phrase. Never a full sentence. Never yes/no.
-5. HISTORY: Stick to famous events/people everyone has heard of (WWII, Civil War, major presidents, etc.). No obscure dates or minor figures.
-6. FOOD & DRINK: Only ask about iconic dishes, drinks, or chefs that most Americans would recognize.
-7. GEOGRAPHY: Mix US geography with world geography. Capitals, landmarks, rivers, countries.
-8. TOPIC UNIQUENESS: Even within today's 39 questions, never ask two questions about the same specific person, event, or subject. Each question must have a unique topic.
+[Food & Drink]
+"Ossobuco is made with vegetables, white wine, broth, and what specific protein?" → Veal shank
 
-OUTPUT FORMAT — return ONLY a raw JSON array of exactly 39 objects, no markdown, no explanation:
+[US History]
+"In 1975, Jimmy Hoffa is believed to have disappeared in what U.S. state?" → Michigan
+
+[Viral Internet / General Knowledge]
+"Robert Galbraith is a pen name for what enormously famous author?" → J.K. Rowling`;
+
+  const totalPerMode = CATEGORIES.length * QS_PER_CATEGORY; // 39
+
+  const allQuestions = {};
+  const generatedSoFar = [];  // Track topics used to prevent overlap across modes
+
+  for (const mode of modes) {
+    console.log(`  ⏳ Generating ${mode} questions...`);
+
+    const overlapWarning = generatedSoFar.length > 0
+      ? `\nAVOID OVERLAP: Do NOT reuse any person, team, movie, show, song, event, or topic that already appeared in: ${generatedSoFar.join(', ')} sets.`
+      : '';
+
+    const prompt = `You are generating daily trivia questions for "The Climb," a daily trivia game.
+Today's date: ${TODAY}
+
+HOW THE GAME WORKS: Players see 3 random category choices at each of 10 rungs and pick one to answer.
+Generate exactly ${totalPerMode} ${mode.toUpperCase()} trivia questions (${QS_PER_CATEGORY} per category × ${CATEGORIES.length} categories).
+
+Difficulty: ${DIFFICULTY_DESC[mode]}${overlapWarning}
+
+Categories (use exactly these names):
+${CATEGORIES.map((c, i) => `${i + 1}. ${c}`).join('\n')}
+
+═══════════════════════════════════════════
+CRITICAL ACCURACY RULES (strictly enforce):
+═══════════════════════════════════════════
+1. FACTUAL CERTAINTY: Only write questions you are 100% certain are correct. If there is any doubt about a fact — especially sports championships, election results, award winners, or records from 2023 onward — do NOT use it. Stick to well-established facts.
+2. NO ANSWER IN QUESTION: The answer word or phrase must NEVER appear anywhere in the question text.
+3. VARIETY WITHIN CATEGORY: The ${QS_PER_CATEGORY} questions within each category must cover different sub-topics.
+4. HINTS MUST NOT REVEAL THE ANSWER: The hint should give useful context but must not contain the answer or any part of it.
+5. SHORT ANSWERS: Answers must be a name, word, number, or very short phrase — never a full sentence.
+6. AUTOCOMPLETE POOL: Generate exactly 20 autocomplete options per question. Include the correct answer plus 19 plausible wrong answers that are all thematically related (same sport, same era, same genre, same domain). The correct answer must be buried among real-sounding alternatives — NOT obvious. Mix in options that share letters/substrings with the correct answer so filtering feels natural.
+7. NO YEAR ANSWERS: Never write a question where the answer is a year. Focus on names, places, people, things, and titles instead.
+8. DIFFICULTY SELF-CHECK: Before finalizing each question, ask yourself — "Would a random adult on the street know this?" Easy=probably yes, Medium=maybe, Hard=probably not.
+9. NO EASY ANSWERS IN HARD: For hard questions, if the answer is something like "Michael Jordan", "The Beatles", "Shakespeare", "Nike", "New York", "Tom Hanks" — it is not hard enough. Replace it.
+10. QUESTION ACCURACY: All facts INSIDE the question text must be accurate — including positions, roles, nationalities, and titles. Do not call a QB a "running back", a singer a "rapper", etc.
+
+STYLE GUIDE — match this tone: punchy, conversational, specific, occasionally playful:
+${STYLE_EXAMPLES}
+
+═══════════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════════
+Return ONLY a raw JSON array. No markdown, no explanation, no code fences. No wrapper object.
+The array must have exactly ${totalPerMode} question objects (${QS_PER_CATEGORY} per category, all ${CATEGORIES.length} categories):
 [
   {
-    "question": "The question text (complete sentence ending in ?)",
-    "answer": "Short exact answer — a name, title, place, or brief phrase",
-    "category": "Exact category name from the list above",
-    "difficulty": "easy or medium or hard",
-    "topic": "The specific subject of this question in 1-4 words (e.g. 'Amazon River', 'Freddie Mercury', 'French Revolution', 'Super Bowl LVII'). Used to prevent repeating the same subject in future days.",
-    "autocomplete": ["correct answer", "plausible wrong 1", "plausible wrong 2", "plausible wrong 3", "plausible wrong 4", "plausible wrong 5", "plausible wrong 6", "plausible wrong 7", "plausible wrong 8", "plausible wrong 9", "plausible wrong 10", "plausible wrong 11", "plausible wrong 12", "plausible wrong 13", "plausible wrong 14", "plausible wrong 15", "plausible wrong 16", "plausible wrong 17", "plausible wrong 18", "plausible wrong 19"]
+    "question": "Question text here?",
+    "answer": "Exact short answer",
+    "hint": "A useful contextual clue that does not reveal the answer",
+    "category": "Category name from the list above",
+    "autocomplete": ["correct answer", "wrong 1", "wrong 2", "...20 total, all thematically related"]
   }
-]
+]`;
 
-AUTOCOMPLETE rules:
-- autocomplete[0] MUST be the correct answer
-- The other 19 entries are plausible-but-wrong answers from the same category (e.g. other athletes, other countries, other movies)
-- Do NOT include obviously wrong answers — they should all seem plausible to make the game challenging`;
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 12000,  // 39 questions × 20 autocomplete options per mode
+      messages: [{ role: 'user', content: prompt }]
+    });
 
+    const text = message.content.map(c => c.text || '').join('');
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    if (!Array.isArray(parsed) || parsed.length !== totalPerMode) {
+      throw new Error(`Expected ${totalPerMode} ${mode} questions, got ${parsed?.length}`);
+    }
+    parsed.forEach((q, i) => {
+      if (!q.question || !q.answer || !q.hint || !q.autocomplete) {
+        throw new Error(`${mode} question ${i + 1} missing required fields`);
+      }
+      if (!Array.isArray(q.autocomplete) || q.autocomplete.length < 10) {
+        throw new Error(`${mode} question ${i + 1} has insufficient autocomplete options (got ${q.autocomplete.length}, need 10+)`);
+      }
+    });
+
+    allQuestions[mode] = parsed;
+    generatedSoFar.push(mode);
+    console.log(`  ✅ ${mode}: ${parsed.length} questions generated`);
+  }
+
+  return allQuestions;
+}
+
+// ── Validate questions with a second fact-check API pass ─────────────────────
+async function validateQuestions(allQuestions) {
+  // Flatten all Q&A pairs with mode + index for tracking
+  const flat = [];
+  for (const [mode, qs] of Object.entries(allQuestions)) {
+    qs.forEach((q, i) => flat.push({
+      mode, index: i,
+      question: q.question,
+      answer: q.answer,
+      category: q.category
+    }));
+  }
+
+  const prompt = `You are a strict trivia fact-checker. Your only job is to verify factual accuracy.
+
+Review each question and answer below. Check ALL of the following for each item:
+1. Is the stated answer definitively, unambiguously correct?
+2. Is there only ONE reasonable correct answer (not multiple valid answers)?
+3. Are ALL factual claims INSIDE the question text accurate? (e.g. if the question says "running back" but the person is actually a quarterback, that is an error in the question itself — flag it)
+4. Are positions, roles, titles, nationalities, and other descriptors in the question text correct for the named person or subject?
+
+Common error to watch for: question text describes someone with the wrong position/role/title (e.g. calling a QB a "running back", calling a singer a "rapper", calling a director an "actor"). These must be flagged even if the answer itself is technically correct.
+
+Return a JSON array containing ONLY items that have problems. For each problem item include:
+- "mode": the difficulty mode (easy/medium/hard)
+- "index": the 0-based index number
+- "action": "fix" if you can correct it (wrong answer OR fixable question text), or "remove" if the question is too broken to fix
+- "corrected_answer": the correct answer string (only when the answer itself is wrong)
+- "corrected_question": the corrected question text (only when the question text contains the error)
+- "reason": one sentence explaining exactly what is wrong
+
+If everything is correct, do NOT include it — only flag real errors.
+Return an empty array [] if everything checks out.
+Return ONLY raw JSON — no markdown, no code fences, no explanation.
+
+Questions to verify:
+${JSON.stringify(flat, null, 2)}`;
+
+  console.log('  ⏳ Running fact-check validation pass...');
   const message = await anthropic.messages.create({
-    model: 'claude-opus-4-5-20251101',
-    max_tokens: 12000,
+    model: 'claude-sonnet-4-5-20250929',
+    max_tokens: 4000,
     messages: [{ role: 'user', content: prompt }]
   });
 
   const text = message.content.map(c => c.text || '').join('');
   const clean = text.replace(/```json|```/g, '').trim();
 
-  let questions;
+  let issues;
   try {
-    questions = JSON.parse(clean);
+    issues = JSON.parse(clean);
   } catch (e) {
-    throw new Error(`JSON parse failed: ${e.message}\nRaw: ${clean.slice(0, 200)}`);
+    console.warn('  ⚠️  Validator returned unparseable JSON — skipping validation pass');
+    return allQuestions;
   }
 
-  if (!Array.isArray(questions)) throw new Error('Response is not an array');
-  if (questions.length > 39) questions = questions.slice(0, 39);
-  if (questions.length < 35) throw new Error(`Too few questions: got ${questions.length}, need at least 35`);
+  if (!Array.isArray(issues) || issues.length === 0) {
+    console.log('  ✅ Fact-check passed — all answers verified');
+    return allQuestions;
+  }
 
-  // Validate and normalize each question
-  questions.forEach((q, i) => {
-    if (!q.question || !q.answer || !q.category || !q.autocomplete) {
-      throw new Error(`Question ${i + 1} missing required fields`);
+  console.log(`  🔍 Fact-check found ${issues.length} issue(s):`);
+  const toRemove = new Set();
+
+  for (const issue of issues) {
+    const { mode, index, action, corrected_answer, corrected_question, reason } = issue;
+    if (!allQuestions[mode] || !allQuestions[mode][index]) continue;
+    const q = allQuestions[mode][index];
+
+    if (action === 'fix') {
+      if (corrected_answer) {
+        console.log(`    🔧 [${mode}][${index}] Answer fixed: "${q.answer}" → "${corrected_answer}" — ${reason}`);
+        allQuestions[mode][index].answer = corrected_answer;
+        // Ensure corrected answer appears in autocomplete
+        if (!allQuestions[mode][index].autocomplete.includes(corrected_answer)) {
+          allQuestions[mode][index].autocomplete[0] = corrected_answer;
+        }
+      }
+      if (corrected_question) {
+        console.log(`    🔧 [${mode}][${index}] Question fixed: "${q.question}" → "${corrected_question}" — ${reason}`);
+        allQuestions[mode][index].question = corrected_question;
+      }
+    } else if (action === 'remove') {
+      console.log(`    🗑️  [${mode}][${index}] Removed: "${q.question}" — ${reason}`);
+      toRemove.add(`${mode}:${index}`);
     }
-    if (!Array.isArray(q.autocomplete) || q.autocomplete.length < 4) {
-      throw new Error(`Question ${i + 1} has insufficient autocomplete options`);
-    }
-    // Normalize difficulty
-    if (!['easy','medium','hard'].includes(q.difficulty)) q.difficulty = 'medium';
-    // Ensure topic exists
-    if (!q.topic) q.topic = q.answer;
-    // Ensure correct answer is first in autocomplete
-    const ans = q.answer.toLowerCase().trim();
-    const idx = q.autocomplete.findIndex(a => a.toLowerCase().trim() === ans);
-    if (idx > 0) { q.autocomplete.splice(idx, 1); q.autocomplete.unshift(q.answer); }
-    else if (idx === -1) q.autocomplete.unshift(q.answer);
-  });
+  }
 
-  // Hard dedup: remove exact text matches AND topic matches from recent history
-  let dupeCount = 0;
-  questions = questions.filter(q => {
-    if (recentTexts.has(q.question.toLowerCase().trim())) { dupeCount++; return false; }
-    const topic = (q.topic || q.answer || '').toLowerCase();
-    if (recentTopics.has(topic)) { dupeCount++; return false; }
-    return true;
-  });
-  if (dupeCount > 0) console.log(`    ⚠️  Removed ${dupeCount} question(s) matching recent topics/text`);
+  // Filter out removed questions
+  for (const mode of Object.keys(allQuestions)) {
+    allQuestions[mode] = allQuestions[mode].filter((_, i) => !toRemove.has(`${mode}:${i}`));
+  }
 
-  return questions;
+  return allQuestions;
 }
 
 // ── Store in Supabase ─────────────────────────────────────────────────────────
@@ -237,10 +311,12 @@ async function storeQuestions(mode, questions) {
     .from('daily_questions')
     .upsert({
       date: TODAY,
-      mode,
-      questions,
+      mode: mode,
+      questions: questions,
       generated_at: new Date().toISOString()
-    }, { onConflict: 'date,mode' });
+    }, {
+      onConflict: 'date,mode'
+    });
 
   if (error) throw new Error(`Supabase error: ${error.message}`);
 }
