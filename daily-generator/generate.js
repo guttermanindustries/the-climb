@@ -146,26 +146,36 @@ CATEGORY-SPECIFIC STYLE TIPS:
 
 // ── Load recent questions for dedup ──────────────────────────────────────────
 async function loadRecentQuestions() {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 30);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  // Exact question text: block for 30 days (prevents same question reappearing)
+  const cutoff30 = new Date();
+  cutoff30.setDate(cutoff30.getDate() - 30);
+  const cutoffStr30 = cutoff30.toISOString().slice(0, 10);
 
-  const { data } = await sb
+  // Topics & answers: block for only 14 days (avoids over-restricting the topic pool)
+  const cutoff14 = new Date();
+  cutoff14.setDate(cutoff14.getDate() - 14);
+  const cutoffStr14 = cutoff14.toISOString().slice(0, 10);
+
+  const { data: data30 } = await sb
     .from('daily_questions')
-    .select('questions')
-    .gte('date', cutoffStr);
+    .select('date, questions')
+    .gte('date', cutoffStr30);
 
-  const texts   = new Set();
-  const topics  = new Set();
-  const answers = new Set();
+  const texts   = new Set(); // 30-day exact text block
+  const topics  = new Set(); // 14-day topic block
+  const answers = new Set(); // 14-day answer block
 
-  for (const row of (data || [])) {
+  for (const row of (data30 || [])) {
+    const isRecent = row.date >= cutoffStr14;
     for (const q of (row.questions || [])) {
+      // Always block exact question text for 30 days
       if (q.question) texts.add(q.question.toLowerCase().trim());
-      if (q.answer)   answers.add(q.answer.toLowerCase().trim());
-      // Use explicit topic if present; fall back to answer as proxy
-      const topic = (q.topic || q.answer || '').trim().toLowerCase();
-      if (topic) topics.add(topic);
+      // Only block topics/answers for 14 days
+      if (isRecent) {
+        if (q.answer) answers.add(q.answer.toLowerCase().trim());
+        const topic = (q.topic || q.answer || '').trim().toLowerCase();
+        if (topic) topics.add(topic);
+      }
     }
   }
   return { texts, topics, answers };
@@ -181,7 +191,7 @@ async function generateQuestions(mode, dedup) {
   const allBlocked = new Set([...dedup.topics, ...dedup.answers]);
   const topicList = [...allBlocked].sort().map(t => `  • ${t}`).join('\n');
   const blockedTopicsSection = topicList
-    ? `\n🚫 BLOCKED TOPICS & ANSWERS — These specific subjects, people, events, places, and things were used in the last 30 days OR in today's other game mode. Do NOT generate any question whose answer or subject matter involves ANY item on this list. This is a hard block — even a tangentially related question is not allowed:\n${topicList}\n`
+    ? `\n🚫 BLOCKED TOPICS & ANSWERS — These specific subjects, people, events, places, and things were used in the last 14 days OR in today's other game mode. Do NOT generate any question whose answer or subject matter involves ANY item on this list. This is a hard block — even a tangentially related question is not allowed:\n${topicList}\n`
     : '';
 
   // List recent question text as a secondary guard
