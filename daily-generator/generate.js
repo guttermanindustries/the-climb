@@ -1,13 +1,15 @@
 /**
- * THE CLIMB – Daily Question Generator (v6)
+ * THE CLIMB – Daily Question Generator (v6.1)
  * ------------------------------------------
  * Runs once per day via GitHub Actions.
- * Generates 39 questions per mode (mc + type) and stores in Supabase.
+ * Generates 51 questions per mode (mc + type) and stores in Supabase.
  *
- * v6 improvements over v5:
- * - Jeopardy-style question format: multiple context clues embedded in each question
- * - Gold-standard example questions per category baked into the prompt
- * - All v5 improvements: cross-mode dedup, answer-level blocking, force-regen
+ * v6.1 improvements over v6:
+ * - 51 questions per mode (was 39) — enough buffer to cover 10 rungs × 3 options across 3 difficulty tiers
+ * - 21-day topic/answer dedup window (was 14) — much better cross-day variety
+ * - allBlocked cross-check: topic vs answers AND answer vs topics — catches Forrest Gump-style mismatches
+ * - Substring matching in dedup filter (≥5 chars) — catches "The Sopranos" vs "Sopranos"
+ * - Permanent ban list for chronically overused trivia topics
  */
 
 require('dotenv').config();
@@ -29,20 +31,21 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
-// ── Category plan: 39 questions per mode ──────────────────────────────────────
+// ── Category plan: 51 questions per mode ──────────────────────────────────────
 const CATEGORY_PLAN = [
-  ['Geography',              4],
-  ['US History',             4],
-  ['Music',                  4],
-  ['TV',                     4],
-  ['Movies',                 4],
-  ['Pro Sports/Players',     4],
-  ['College Sports/Players', 4],
-  ['Science',                4],
-  ['General Knowledge',      3],
-  ['History',                3],
-  ['Food & Drink',           2],
+  ['Geography',              5],
+  ['US History',             5],
+  ['Music',                  5],
+  ['TV',                     5],
+  ['Movies',                 5],
+  ['Pro Sports/Players',     5],
+  ['College Sports/Players', 5],
+  ['Science',                5],
+  ['General Knowledge',      5],
+  ['History',                4],
+  ['Food & Drink',           3],
 ];
+// Total: 52 (model may produce 51-52; we accept 48-52 and slice to 51 max)
 
 const MODES = ['mc', 'type'];
 
@@ -57,12 +60,21 @@ const DIFFICULTY_DESC = {
   hard:   'HARD — specific enough that only well-read or enthusiastic fans would know. Still a real fact, not obscure trivia. Target: ~20-40% correct rate.',
 };
 
+// ── Topics permanently banned (chronically overused in trivia) ─────────────────
+const PERMANENT_BAN = new Set([
+  'forrest gump', 'the sopranos', 'sopranos', 'breaking bad', 'friends',
+  'the office', 'seinfeld', 'game of thrones', 'the simpsons',
+  'tom hanks', 'michael jordan', 'lebron james', 'babe ruth',
+  'titanic', 'the godfather', 'star wars', 'jeopardy',
+  'michael jackson', 'beatles', 'elvis presley', 'elvis',
+  'mount everest', 'amazon river', 'nile river',
+]);
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log(`\n🏔️ The Climb Daily Generator v6 — ${TODAY}\n`);
+  console.log(`\n🏔️ The Climb Daily Generator v6.1 — ${TODAY}\n`);
   if (FORCE_REGEN) console.log('⚡ FORCE_REGEN=true — will overwrite existing questions\n');
 
-  // Check which modes still need generating today
   const { data: existing } = await sb
     .from('daily_questions')
     .select('mode, questions')
@@ -76,7 +88,6 @@ async function main() {
     return;
   }
 
-  // ── Load last 30 days of questions for dedup ──────────────────────────────
   const dedup = await loadRecentQuestions();
   console.log(`📑 Loaded ${dedup.texts.size} recent question texts`);
   console.log(`🏷️  Loaded ${dedup.topics.size} recent topics`);
@@ -89,9 +100,7 @@ async function main() {
       await storeQuestions(mode, questions);
       console.log(`  ✅ ${mode}: ${questions.length} questions stored\n`);
 
-      // ── KEY FIX: add this mode's questions to the dedup sets ────────────
-      // This ensures the NEXT mode (e.g. type after mc) won't repeat any
-      // of the same topics, answers, or question texts generated above.
+      // Add this mode's questions to dedup so next mode won't repeat them
       for (const q of questions) {
         if (q.question) dedup.texts.add(q.question.toLowerCase().trim());
         if (q.answer)   dedup.answers.add(q.answer.toLowerCase().trim());
@@ -146,15 +155,15 @@ CATEGORY-SPECIFIC STYLE TIPS:
 
 // ── Load recent questions for dedup ──────────────────────────────────────────
 async function loadRecentQuestions() {
-  // Exact question text: block for 30 days (prevents same question reappearing)
+  // Exact question text: block for 30 days
   const cutoff30 = new Date();
   cutoff30.setDate(cutoff30.getDate() - 30);
   const cutoffStr30 = cutoff30.toISOString().slice(0, 10);
 
-  // Topics & answers: block for only 14 days (avoids over-restricting the topic pool)
-  const cutoff14 = new Date();
-  cutoff14.setDate(cutoff14.getDate() - 14);
-  const cutoffStr14 = cutoff14.toISOString().slice(0, 10);
+  // Topics & answers: block for 21 days (was 14 — extended to reduce repeats)
+  const cutoff21 = new Date();
+  cutoff21.setDate(cutoff21.getDate() - 21);
+  const cutoffStr21 = cutoff21.toISOString().slice(0, 10);
 
   const { data: data30 } = await sb
     .from('daily_questions')
@@ -162,15 +171,13 @@ async function loadRecentQuestions() {
     .gte('date', cutoffStr30);
 
   const texts   = new Set(); // 30-day exact text block
-  const topics  = new Set(); // 14-day topic block
-  const answers = new Set(); // 14-day answer block
+  const topics  = new Set(); // 21-day topic block
+  const answers = new Set(); // 21-day answer block
 
   for (const row of (data30 || [])) {
-    const isRecent = row.date >= cutoffStr14;
+    const isRecent = row.date >= cutoffStr21;
     for (const q of (row.questions || [])) {
-      // Always block exact question text for 30 days
       if (q.question) texts.add(q.question.toLowerCase().trim());
-      // Only block topics/answers for 14 days
       if (isRecent) {
         if (q.answer) answers.add(q.answer.toLowerCase().trim());
         const topic = (q.topic || q.answer || '').trim().toLowerCase();
@@ -187,20 +194,19 @@ async function generateQuestions(mode, dedup) {
     `- ${cat}: ${n} question${n > 1 ? 's' : ''}`
   ).join('\n');
 
-  // Build blocked topics section (topics + answers, deduplicated)
-  const allBlocked = new Set([...dedup.topics, ...dedup.answers]);
+  // Merge topics + answers into one blocked set, plus permanent bans
+  const allBlocked = new Set([...dedup.topics, ...dedup.answers, ...PERMANENT_BAN]);
   const topicList = [...allBlocked].sort().map(t => `  • ${t}`).join('\n');
   const blockedTopicsSection = topicList
-    ? `\n🚫 BLOCKED TOPICS & ANSWERS — These specific subjects, people, events, places, and things were used in the last 14 days OR in today's other game mode. Do NOT generate any question whose answer or subject matter involves ANY item on this list. This is a hard block — even a tangentially related question is not allowed:\n${topicList}\n`
+    ? `\n🚫 BLOCKED TOPICS & ANSWERS — These were used recently OR are permanently banned. Do NOT generate any question whose answer OR topic involves ANY item on this list:\n${topicList}\n`
     : '';
 
-  // List recent question text as a secondary guard
   const recentList = [...dedup.texts].slice(0, 40).map(q => `  • ${q.slice(0, 90)}`).join('\n');
   const recentSection = recentList
     ? `\n📋 RECENTLY USED QUESTIONS (do not repeat or paraphrase):\n${recentList}\n`
     : '';
 
-  const prompt = `You are generating questions for "The Climb", a daily trivia game. Generate exactly 39 trivia questions.
+  const prompt = `You are generating questions for "The Climb", a daily trivia game. Generate exactly 51 trivia questions.
 
 MODE: ${mode.toUpperCase()} — ${MODE_DESC[mode]}
 
@@ -208,9 +214,9 @@ CATEGORY QUOTAS (generate exactly this many per category):
 ${categoryLines}
 
 DIFFICULTY DISTRIBUTION — each question must be tagged as easy, medium, or hard:
-- easy:   ~14 questions — ${DIFFICULTY_DESC.easy}
-- medium: ~16 questions — ${DIFFICULTY_DESC.medium}
-- hard:   ~9 questions  — ${DIFFICULTY_DESC.hard}
+- easy:   ~18 questions — ${DIFFICULTY_DESC.easy}
+- medium: ~22 questions — ${DIFFICULTY_DESC.medium}
+- hard:   ~11 questions  — ${DIFFICULTY_DESC.hard}
 Spread difficulty across ALL categories. Do not cluster all hard questions in one category.
 ${EXAMPLE_QUESTIONS}
 ${blockedTopicsSection}${recentSection}
@@ -223,9 +229,10 @@ QUALITY RULES — read carefully, these are strict:
 6. HISTORY: Stick to famous events/people everyone has heard of (WWII, Civil War, major presidents, etc.). No obscure dates or minor figures.
 7. FOOD & DRINK: Only ask about iconic dishes, drinks, or chefs that most Americans would recognize — nothing regional or obscure.
 8. GEOGRAPHY: Mix US geography with world geography. Capitals, landmarks, rivers, countries.
-9. TOPIC UNIQUENESS: Even within today's 39 questions, never ask two questions about the same specific person, event, or subject. Each question must have a unique topic.
+9. TOPIC UNIQUENESS: Even within today's 51 questions, never ask two questions about the same specific person, event, or subject. Each question must have a unique topic.
+10. AVOID OVERUSED TRIVIA: Do not ask about subjects that appear constantly in bar trivia (e.g., "What is the largest planet?", "Who painted the Mona Lisa?"). Find fresh angles.
 
-OUTPUT FORMAT — return ONLY a raw JSON array of exactly 39 objects, no markdown, no explanation:
+OUTPUT FORMAT — return ONLY a raw JSON array of exactly 51 objects, no markdown, no explanation:
 [
   {
     "question": "The question text (complete sentence ending in ?)",
@@ -244,7 +251,7 @@ AUTOCOMPLETE rules:
 
   const message = await anthropic.messages.create({
     model: 'claude-opus-4-5-20251101',
-    max_tokens: 12000,
+    max_tokens: 16000,
     messages: [{ role: 'user', content: prompt }]
   });
 
@@ -259,8 +266,8 @@ AUTOCOMPLETE rules:
   }
 
   if (!Array.isArray(questions)) throw new Error('Response is not an array');
-  if (questions.length > 39) questions = questions.slice(0, 39);
-  if (questions.length < 35) throw new Error(`Too few questions: got ${questions.length}, need at least 35`);
+  if (questions.length > 52) questions = questions.slice(0, 52);
+  if (questions.length < 45) throw new Error(`Too few questions: got ${questions.length}, need at least 45`);
 
   // Validate and normalize each question
   questions.forEach((q, i) => {
@@ -270,27 +277,43 @@ AUTOCOMPLETE rules:
     if (!Array.isArray(q.autocomplete) || q.autocomplete.length < 4) {
       throw new Error(`Question ${i + 1} has insufficient autocomplete options`);
     }
-    // Normalize difficulty
     if (!['easy','medium','hard'].includes(q.difficulty)) q.difficulty = 'medium';
-    // Ensure topic exists
     if (!q.topic) q.topic = q.answer;
-    // Ensure correct answer is first in autocomplete
     const ans = q.answer.toLowerCase().trim();
     const idx = q.autocomplete.findIndex(a => a.toLowerCase().trim() === ans);
     if (idx > 0) { q.autocomplete.splice(idx, 1); q.autocomplete.unshift(q.answer); }
     else if (idx === -1) q.autocomplete.unshift(q.answer);
   });
 
-  // Hard dedup: remove exact text matches, topic matches, AND answer matches
+  // ── Cross-matched dedup with substring matching ───────────────────────────
+  // allBlocked = topics + answers + permanent bans (all 3 sets merged)
+  const allBlocked = new Set([...dedup.topics, ...dedup.answers, ...PERMANENT_BAN]);
+
+  // Returns true if str matches anything in allBlocked (exact OR substring for strings ≥5 chars)
+  const isBlocked = (str) => {
+    if (!str) return false;
+    const s = str.toLowerCase().trim();
+    if (allBlocked.has(s)) return true;
+    // Substring check: block if any banned term (≥5 chars) appears in str, or str appears in a banned term (≥5 chars)
+    for (const blocked of allBlocked) {
+      if (blocked.length >= 5 && (s.includes(blocked) || blocked.includes(s))) return true;
+    }
+    return false;
+  };
+
   let dupeCount = 0;
   questions = questions.filter(q => {
-    if (dedup.texts.has(q.question.toLowerCase().trim()))         { dupeCount++; return false; }
-    if (dedup.answers.has(q.answer.toLowerCase().trim()))         { dupeCount++; return false; }
+    // 1. Exact question text match (30-day block)
+    if (dedup.texts.has(q.question.toLowerCase().trim()))  { dupeCount++; return false; }
+    // 2. Answer blocked (cross-matched against topics + answers + bans, with substring)
+    if (isBlocked(q.answer))                               { dupeCount++; return false; }
+    // 3. Topic blocked (cross-matched against topics + answers + bans, with substring)
     const topic = (q.topic || q.answer || '').toLowerCase().trim();
-    if (dedup.topics.has(topic))                                  { dupeCount++; return false; }
+    if (isBlocked(topic))                                  { dupeCount++; return false; }
     return true;
   });
-  if (dupeCount > 0) console.log(`    ⚠️  Removed ${dupeCount} question(s) matching recent topics/answers/text`);
+
+  if (dupeCount > 0) console.log(`    ⚠️  Removed ${dupeCount} question(s) that matched recent topics`);
 
   return questions;
 }
