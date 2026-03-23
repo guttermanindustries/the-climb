@@ -267,7 +267,7 @@ AUTOCOMPLETE rules:
 
   if (!Array.isArray(questions)) throw new Error('Response is not an array');
   if (questions.length > 52) questions = questions.slice(0, 52);
-  if (questions.length < 45) throw new Error(`Too few questions: got ${questions.length}, need at least 45`);
+  if (questions.length < 28) throw new Error(`Too few questions: got ${questions.length}, need at least 28`);
 
   // Validate and normalize each question
   questions.forEach((q, i) => {
