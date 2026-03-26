@@ -286,8 +286,7 @@ AUTOCOMPLETE rules:
   });
 
   // ── Cross-matched dedup with substring matching ───────────────────────────
-  // allBlocked = topics + answers + permanent bans (all 3 sets merged)
-  const allBlocked = new Set([...dedup.topics, ...dedup.answers, ...PERMANENT_BAN]);
+  // allBlocked already declared above (topics + answers + permanent bans)
 
   // Returns true if str matches anything in allBlocked (exact OR substring for strings ≥5 chars)
   const isBlocked = (str) => {
