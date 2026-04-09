@@ -31,21 +31,19 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
-// ── Category plan: 51 questions per mode ──────────────────────────────────────
+// ── Category plan: 36 questions per mode (4 per category × 9 categories) ──────
 const CATEGORY_PLAN = [
-  ['Geography',              5],
-  ['US History',             5],
-  ['Music',                  5],
-  ['TV',                     5],
-  ['Movies',                 5],
-  ['Pro Sports/Players',     5],
-  ['College Sports/Players', 5],
-  ['Science',                5],
-  ['General Knowledge',      5],
-  ['History',                4],
-  ['Food & Drink',           3],
+  ['Geography',              4],
+  ['Movies',                 4],
+  ['Music',                  4],
+  ['TV',                     4],
+  ['Pro Sports/Players',     4],
+  ['General Knowledge',      4],
+  ['US History',             4],
+  ['College Sports/Players', 4],
+  ['Food & Drink',           4],
 ];
-// Total: 52 (model may produce 51-52; we accept 48-52 and slice to 51 max)
+// Total: 36 per mode
 
 const MODES = ['mc', 'type'];
 
@@ -62,8 +60,8 @@ const DIFFICULTY_DESC = {
 
 // ── Topics permanently banned (chronically overused in trivia) ─────────────────
 const PERMANENT_BAN = new Set([
-  'forrest gump', 'the sopranos', 'sopranos', 'breaking bad', 'friends',
-  'the office', 'seinfeld', 'game of thrones', 'the simpsons',
+  'forrest gump', 'the sopranos', 'sopranos', 'breaking bad', 'walter white', 'heisenberg', 'jesse pinkman',
+  'friends', 'the office', 'seinfeld', 'game of thrones', 'the simpsons',
   'tom hanks', 'michael jordan', 'lebron james', 'babe ruth',
   'titanic', 'the godfather', 'star wars', 'jeopardy',
   'michael jackson', 'beatles', 'elvis presley', 'elvis',
@@ -118,39 +116,73 @@ async function main() {
   console.log('🏁 Done! Today\'s questions are ready.\n');
 }
 
-// ── Gold-standard example questions (Jeopardy-style templates) ───────────────
+// ── Category style guide + gold-standard examples ────────────────────────────
 const EXAMPLE_QUESTIONS = `
-QUESTION STYLE — "Jeopardy-style" with embedded context clues:
-Every question must contain 2-4 context clues that help players reason toward the answer even if they don't know it outright. Never ask a bare one-fact question like "What team did X play for?" Instead, layer in details: the year, co-stars, stats, a description of the logo/mascot, a teammate, a plot element — anything that gives multiple hooks. The question should make a player think "oh yeah, I should have known that!" not "I either knew it or I didn't."
+═══════════════════════════════════════════════════════════
+QUESTION STYLE — READ CAREFULLY
+═══════════════════════════════════════════════════════════
+Every question MUST layer 2–4 clues so a player can reason toward the answer even without knowing it outright. Never ask a single bare fact. The question should produce an "oh yeah, I should have known that!" moment — not "I either knew it or I didn't."
 
-BAD (no context clues):  "What channel broadcasts the NCAA tournament alongside CBS?"
-GOOD (Jeopardy-style):   "Along with CBS, three cable channels will have live coverage of Round 1 of the NCAA tournament: TNT, TBS, and this channel."
+NEVER DO THESE:
+• Never name the answer inside the question (e.g. don't ask "What movie features a gladiator?" if the answer is Gladiator)
+• Never ask capital cities, basic colors, or anything a child would instantly know
+• Never ask "What year did X happen?" as the sole question — year can be a clue, not the entire question
+• Never use questions where the answer is a common acronym or basic household brand asked generically
+• Never quote song lyrics — describe the song/album/era instead
+• Never ask about topics on the blocked list — including in the question text itself
 
-BAD (no context clues):  "What movie starred Christina Ricci and Devon Sawa?"
-GOOD (Jeopardy-style):   "With Malachi Pearson voicing the Ghost and Devon Sawa playing the human version, this 1995 supernatural fantasy comedy also starring Christina Ricci grossed over $250 million."
+═══════════════════════════════════════════════════════════
+CATEGORY STYLE GUIDES (match these examples closely)
+═══════════════════════════════════════════════════════════
 
-BAD (no context clues):  "What school did Marshall Henderson play for?"
-GOOD (Jeopardy-style):   "Marshall Henderson led the SEC in 2013 with over 20 points per game for this school."
+GEOGRAPHY — America-focused, connect-the-dots reasoning. Layer a geographic fact with a cultural/pop-culture clue.
+  ✓ GOOD: "This state, fully in the central time zone, is the largest in the US by land area." (Texas)
+  ✓ GOOD: "This small Vermont city, the least populous state capital in the US, is also the only state capital without a McDonald's within city limits." (Montpelier)
+  ✗ BAD: "What is the capital of France?" — too obvious, single fact
 
-BAD (no context clues):  "What show featured a smoke monster?"
-GOOD (Jeopardy-style):   "This show debuted in the early 2000s and characters ran into polar bears, black smoke and mystery in a jungle."
+MOVIES — Connect multiple pop culture touchpoints. "Before they were famous" angles, box office milestones, unexpected cast connections.
+  ✓ GOOD: "Jim Carrey had three movies release in 1994 — Ace Ventura, Dumb and Dumber, and this film that also starred an actress who would later play one of Charlie's Angels." (The Mask)
+  ✓ GOOD: "This film, nominated for Best Picture at the 2012 Oscars and adapted from a Michael Lewis book, featured Chris Pratt in a minor supporting role." (Moneyball)
+  ✓ GOOD: "Ranked among the top 25 highest-grossing films of all time, this 2022 blockbuster was a sequel to a film released 36 years earlier." (Top Gun: Maverick)
+  ✗ BAD: "Who directed Jaws?" — single fact, too well known
 
-BAD (no context clues):  "What point guard won a title with the Heat?"
-GOOD (Jeopardy-style):   "After playing HS basketball with Randy Moss, this Point Guard went to college, became a Top 10 pick, had a Top 5 Assists season with Memphis, and won a title with the Heat."
+MUSIC — Pop culture crossover. Connect songs/artists to the broader cultural moment. No lyric quotes — describe the song/era instead.
+  ✓ GOOD: "This American Idol winner, who was only 17 when they won Season 10, went on to release country hits including 'Five More Minutes' and 'Damn Strait'." (Scotty McCreery)
+  ✓ GOOD: "This rock legend, known for his theatrical makeup and stage persona, had cameo roles in both the horror film Prince of Darkness and the comedy Wayne's World." (Alice Cooper)
+  ✗ BAD: "Who sang 'Thriller'?" — single fact, banned topic anyway
 
-BAD (no context clues):  "What NFL team drafted Josh Johnson?"
-GOOD (Jeopardy-style):   "With 23 stints across 14 NFL teams, this NFC team drafted QB Josh Johnson in the 5th Round of the 2008 Draft, and he'd make his debut start with them in 2009."
+TV — Layered clues by default. Use supporting cast, network, era, and run length together. Occasionally a straightforward question is fine if the answer is non-obvious.
+  ✓ GOOD: "Jake Johnson, best known for playing Nick Miller, starred in this Fox comedy that ran for 7 seasons starting in 2011." (New Girl)
+  ✓ GOOD (straightforward): "This hidden-camera comedy featuring four lifelong friends from Staten Island has aired since 2011 on truTV." (Impractical Jokers)
+  ✗ BAD: Anything about Friends, The Office, Seinfeld, Game of Thrones, Breaking Bad — permanently banned
 
-CATEGORY-SPECIFIC STYLE TIPS:
-- Pro Sports/Players & College Sports/Players: Include stat, year, team context, and/or a famous connection (teammate, rival, coach). Never just "who played for X?"
-- Movies: Include year, at least one cast member, genre, and a production detail (box office, director, studio).
-- TV: Describe plot elements, setting, or characters — never just name the show directly in the question.
-- Music: Include era, genre, a collaborator or label, and a hit song or album detail.
-- Geography: Give 2 geographic clues (e.g. river + country, size ranking + continent).
-- History & US History: Include the year or era, the stakes or outcome, and at least one named figure.
-- Science: Include a discovery context, the scientist's nationality or era, and the practical application.
-- General Knowledge: Give at least 2 descriptive clues about the subject.
-- Food & Drink: Describe origin, appearance, or a famous chef/restaurant connection alongside the food itself.
+PRO SPORTS/PLAYERS — Reward deeper stats knowledge, not just household names. Connect career milestones across teams.
+  ✓ GOOD: "This NBA guard, who began his career with the Chicago Bulls, won the Sixth Man of the Year award three times across different teams and finished his career with the Brooklyn Nets." (Jamal Crawford)
+  ✓ GOOD: "This wide receiver, drafted by the Denver Broncos in 2006 out of UCF, played 13 NFL seasons and had seven consecutive 1,000-yard receiving seasons." (Brandon Marshall)
+  ✓ GOOD: "This MLB franchise relocated from Montreal to Washington D.C. in 2005, then won their first and only World Series title in 2019." (Washington Nationals)
+  ✗ BAD: "How many Super Bowl rings does Tom Brady have?" — overused, too obvious
+
+GENERAL KNOWLEDGE — Fact plus creative twist or unexpected cross-category connection. Reward lateral thinking.
+  ✓ GOOD: "The longest bone in the human body shares all but its first letter with a small primate found in Madagascar — name the bone." (Femur → Lemur)
+  ✓ GOOD: "This major American city was the site of a world-altering tragedy in 1963 and is also home to an NFL franchise that won back-to-back Super Bowls in the 1990s." (Dallas)
+  ✗ BAD: "What city is known for grunge music and coffee?" — too obvious, single-association
+
+US HISTORY — Famous events from the less obvious angle. Connect events to who held office, or test the assumption everyone gets wrong.
+  ✓ GOOD: "The Declaration of Independence was signed in 1776, but the US Constitution wasn't ratified until what year?" (1788)
+  ✓ GOOD: "This president was in office when the Space Shuttle Challenger broke apart shortly after launch in January 1986." (Ronald Reagan)
+  ✓ GOOD: "Who was serving as Vice President of the United States when the Berlin Wall fell in November 1989?" (Dan Quayle)
+  ✗ BAD: "Who was the first president of the United States?" — too obvious
+
+COLLEGE SPORTS/PLAYERS — March Madness upsets, international players, connecting college careers to pro success.
+  ✓ GOOD: "This 13-seed team from the America East conference, led by Taylor Coppenrath and TJ Sorrentine, pulled off a stunning upset of 4-seed Syracuse in the 2005 NCAA Tournament." (Vermont)
+  ✓ GOOD: "This Australian center played college basketball at the University of Utah before being selected with the first overall pick in the 2005 NBA Draft." (Andrew Bogut)
+  ✗ BAD: "What school did LeBron James attend?" — he didn't go to college, trap question
+
+FOOD & DRINK — Surprising facts about well-known brands. Little-known product extensions, unexpected origins.
+  ✓ GOOD: "This iconic fast food chain, primarily known for burgers and fries, has quietly offered birthday cakes for decades — available at select locations but never advertised on the menu." (McDonald's)
+  ✓ GOOD: "Coca-Cola launched this sparkling water brand in 2020 to compete in the growing seltzer market, but it has struggled to gain traction since its debut." (AHA Sparkling Water)
+  ✓ GOOD: "In 2024, Pringles released its first-ever puffed snack sold in a bag rather than a can — a bowtie-shaped product named what?" (Pringles Mingles)
+  ✗ BAD: "What country did pizza originate in?" — too obvious
 `;
 
 // ── Load recent questions for dedup ──────────────────────────────────────────
@@ -206,7 +238,7 @@ async function generateQuestions(mode, dedup) {
     ? `\n📋 RECENTLY USED QUESTIONS (do not repeat or paraphrase):\n${recentList}\n`
     : '';
 
-  const prompt = `You are generating questions for "The Climb", a daily trivia game. Generate exactly 51 trivia questions.
+  const prompt = `You are generating questions for "The Climb", a daily trivia game. Generate exactly 36 trivia questions.
 
 MODE: ${mode.toUpperCase()} — ${MODE_DESC[mode]}
 
@@ -214,25 +246,22 @@ CATEGORY QUOTAS (generate exactly this many per category):
 ${categoryLines}
 
 DIFFICULTY DISTRIBUTION — each question must be tagged as easy, medium, or hard:
-- easy:   ~18 questions — ${DIFFICULTY_DESC.easy}
-- medium: ~22 questions — ${DIFFICULTY_DESC.medium}
-- hard:   ~11 questions  — ${DIFFICULTY_DESC.hard}
+- easy:   ~9 questions  — ${DIFFICULTY_DESC.easy}
+- medium: ~18 questions — ${DIFFICULTY_DESC.medium}
+- hard:   ~9 questions  — ${DIFFICULTY_DESC.hard}
 Spread difficulty across ALL categories. Do not cluster all hard questions in one category.
 ${EXAMPLE_QUESTIONS}
 ${blockedTopicsSection}${recentSection}
 QUALITY RULES — read carefully, these are strict:
-1. JEOPARDY STYLE: Every question must follow the Jeopardy-style format described above — multiple embedded context clues, never a bare one-fact question.
+1. LAYERED CLUES: Every question must follow the style guide above — multiple embedded context clues, never a bare one-fact question.
 2. DIFFICULTY SWEET SPOT: Match the difficulty tag honestly. An "easy" question should be answerable by most casual players. A "hard" question requires genuine specific knowledge.
 3. NO TRIVIA TRAPS: Avoid questions where the answer is a common acronym, a basic household brand asked generically, or something so famous it's on every beginner trivia list.
 4. FAMOUS BUT INTERESTING: Good questions feel like "oh yeah, I should know that!" — not "everyone knows that" or "nobody knows that."
 5. SPECIFIC ANSWERS ONLY: Answers must be a specific person's name, a place, a movie/show/song title, or a short phrase. Never a full sentence. Never yes/no.
-6. HISTORY: Stick to famous events/people everyone has heard of (WWII, Civil War, major presidents, etc.). No obscure dates or minor figures.
-7. FOOD & DRINK: Only ask about iconic dishes, drinks, or chefs that most Americans would recognize — nothing regional or obscure.
-8. GEOGRAPHY: Mix US geography with world geography. Capitals, landmarks, rivers, countries.
-9. TOPIC UNIQUENESS: Even within today's 51 questions, never ask two questions about the same specific person, event, or subject. Each question must have a unique topic.
-10. AVOID OVERUSED TRIVIA: Do not ask about subjects that appear constantly in bar trivia (e.g., "What is the largest planet?", "Who painted the Mona Lisa?"). Find fresh angles.
+6. TOPIC UNIQUENESS: Never ask two questions about the same specific person, event, or subject. Each question must have a unique topic.
+7. AVOID OVERUSED TRIVIA: Do not ask about subjects that appear constantly in bar trivia (e.g., "What is the largest planet?", "Who painted the Mona Lisa?"). Find fresh angles.
 
-OUTPUT FORMAT — return ONLY a raw JSON array of exactly 51 objects, no markdown, no explanation:
+OUTPUT FORMAT — return ONLY a raw JSON array of exactly 36 objects, no markdown, no explanation:
 [
   {
     "question": "The question text (complete sentence ending in ?)",
@@ -266,8 +295,8 @@ AUTOCOMPLETE rules:
   }
 
   if (!Array.isArray(questions)) throw new Error('Response is not an array');
-  if (questions.length > 52) questions = questions.slice(0, 52);
-  if (questions.length < 28) throw new Error(`Too few questions: got ${questions.length}, need at least 28`);
+  if (questions.length > 37) questions = questions.slice(0, 37);
+  if (questions.length < 27) throw new Error(`Too few questions: got ${questions.length}, need at least 27`);
 
   // Validate and normalize each question
   questions.forEach((q, i) => {
@@ -309,6 +338,11 @@ AUTOCOMPLETE rules:
     // 3. Topic blocked (cross-matched against topics + answers + bans, with substring)
     const topic = (q.topic || q.answer || '').toLowerCase().trim();
     if (isBlocked(topic))                                  { dupeCount++; return false; }
+    // 4. Question text itself mentions a banned topic (catches "In Breaking Bad, Walter White...")
+    if (isBlocked(q.question))                             { dupeCount++; return false; }
+    // 5. Answer appears verbatim in the question text (e.g. "What film starred Russell Crowe as a Gladiator?" → "Gladiator")
+    const ansLower = (q.answer || '').toLowerCase().trim();
+    if (ansLower.length >= 4 && q.question.toLowerCase().includes(ansLower)) { dupeCount++; return false; }
     return true;
   });
 
